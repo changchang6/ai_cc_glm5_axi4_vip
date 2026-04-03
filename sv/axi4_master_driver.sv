@@ -379,7 +379,7 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             // Drive write data
             m_vif.master_cb.wdata  <= trans.m_wdata[beat_count];
             m_vif.master_cb.wstrb  <= trans.m_wstrb[beat_count];
-            m_vif.master_cb.wlast  <= is_last_beat;
+            m_vif.master_cb.wlast  <= is_last_beat;  // 只在最后1 beat拉高
             m_vif.master_cb.wuser  <= trans.m_user;
             m_vif.master_cb.wvalid <= 1;
 
@@ -394,13 +394,11 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             end
 
             beat_count++;
-
-            if (is_last_beat) begin
-                m_vif.master_cb.wvalid <= 0;
-            end
         end
 
+        // 传输结束后清零信号
         m_vif.master_cb.wvalid <= 0;
+        m_vif.master_cb.wlast  <= 0;
     endtask
 
     // Handle write response channel

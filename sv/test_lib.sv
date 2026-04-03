@@ -82,4 +82,72 @@ class axi4_smoke_test extends axi4_base_test;
 
 endclass : axi4_smoke_test
 
+// Burst INCR Test
+// Test to verify INCR burst functionality with random burst length [1:16]
+// Parameters:
+//   - LEN: random inside [1:16] beats per transaction
+//   - SIZE: max_width (4 bytes for 32-bit data)
+//   - BURST: INCR
+//   - Start address: aligned to 4 bytes
+//   - Number of transactions: 5000
+class axi4_burst_incr_test extends axi4_base_test;
+    `uvm_component_utils(axi4_burst_incr_test)
+
+    // Test parameters
+    int m_num_trans = 5000;
+
+    // Constructor
+    function new(string name = "axi4_burst_incr_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    // Run phase
+    task run_phase(uvm_phase phase);
+        axi4_burst_incr_sequence seq;
+
+        phase.raise_objection(this);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       AXI4 BURST INCR TEST", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: random [1:16] beats", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: 4 bytes (SIZE=2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Start Address: 0x1000_0000 (aligned)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Number of Transactions: 5000", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // Create and configure the sequence
+        seq = axi4_burst_incr_sequence::type_id::create("seq");
+
+        // Set test parameters:
+        // - LEN: random [0:15] (1-16 beats) - randomized in sequence
+        // - SIZE: 2 (4 bytes per beat)
+        // - BURST: INCR
+        // - Start address aligned to 4 bytes (0x1000_0000)
+        // - Number of transactions: 5000
+        if (!seq.randomize() with {
+            m_len        == 0;            // Will be randomized per transaction in sequence
+            m_size       == 2;            // 4 bytes per beat
+            m_start_addr == 32'h1000_0000; // Aligned start address
+            m_num_trans  == local::m_num_trans; // 5000 transactions
+            m_burst      == INCR;         // INCR burst type
+        }) begin
+            `uvm_error(get_type_name(), "Sequence randomization failed")
+        end
+
+        // Start the sequence on the master sequencer
+        seq.start(m_env.m_master_agent.m_sequencer);
+
+        // Wait for all transactions to complete
+        #1000;
+
+        `uvm_info(get_type_name(), "Burst INCR test sequence completed", UVM_MEDIUM)
+
+        phase.drop_objection(this);
+    endtask
+
+endclass : axi4_burst_incr_test
+
 `endif // AXI4_TEST_LIB_SV

@@ -76,7 +76,7 @@ interface axi4_interface #(
 
     // Master clocking block
     clocking master_cb @(posedge ACLK);
-        default input #1step output #0;
+        default input #1step output #1step;
 
         // Write Address Channel
         output awid, awaddr, awlen, awsize, awburst, awlock;
@@ -128,6 +128,34 @@ interface axi4_interface #(
     endclocking : monitor_cb
 
     // Protocol Assertions
+
+    // Beat counters for WLAST/RLAST assertion checking
+    int w_beat_count;
+    int r_beat_count;
+
+    always @(posedge ACLK or negedge ARESETn) begin
+        if (!ARESETn) begin
+            w_beat_count <= 0;
+            r_beat_count <= 0;
+        end else begin
+            // Count write beats
+            if (wvalid && wready) begin
+                if (wlast)
+                    w_beat_count <= 0;
+                else
+                    w_beat_count <= w_beat_count + 1;
+            end
+
+            // Count read beats
+            if (rvalid && rready) begin
+                if (rlast)
+                    r_beat_count <= 0;
+                else
+                    r_beat_count <= r_beat_count + 1;
+            end
+        end
+    end
+
     // Assertion 1: AWVALID stability - Master must hold AWVALID until AWREADY goes high
     property p_awvalid_stable;
         @(posedge ACLK) disable iff (!ARESETn)
@@ -162,12 +190,10 @@ interface axi4_interface #(
     cover property (p_wvalid_stable);
 
     // Assertion 4: WLAST correctness - WLAST must be high on the last beat of burst
-    // Count beats and verify WLAST is asserted on beat count = AWLEN + 1
+    // For burst with AWLEN=N, there should be N+1 beats, WLAST on last beat
     property p_wlast_correct;
-        int beat_count = 0;
         @(posedge ACLK) disable iff (!ARESETn)
-        (wvalid && wready, beat_count = (wlast) ? 0 : beat_count + 1)
-        |-> (wlast |-> beat_count == awlen);
+        (wvalid && wready && wlast) |-> w_beat_count == awlen;
     endproperty
 
     assert property (p_wlast_correct)
@@ -177,10 +203,8 @@ interface axi4_interface #(
 
     // Assertion 5: RLAST correctness - Slave must assert RLAST on last beat
     property p_rlast_correct;
-        int beat_count = 0;
         @(posedge ACLK) disable iff (!ARESETn)
-        (rvalid && rready, beat_count = (rlast) ? 0 : beat_count + 1)
-        |-> (rlast |-> beat_count == arlen);
+        (rvalid && rready && rlast) |-> r_beat_count == arlen;
     endproperty
 
     assert property (p_rlast_correct)

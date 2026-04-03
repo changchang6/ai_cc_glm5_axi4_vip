@@ -219,8 +219,11 @@ Selection-LineColor = ID_BLUE2
 Selection-LineWidth = 1
 [FSM_Dlg-Print]
 Orientation = Landscape
+[FileBrowser]
+nWaveRestoreRCDirHistory = "\"/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/signal.rc\""
 [Form]
 version = Verdi_O-2018.09-SP2
+wave/unknownSave.fm = 100,100,520,275
 [General]
 autoSaveSession = FALSE
 TclAutoSource = 
@@ -378,9 +381,10 @@ saveWaveformStat = TRUE
 savePropStat = FALSE
 savePropDtl = TRUE
 [QtDialog]
-restoreSigDlg = 1009,496,929,597
 saveSigDlg = 1009,522,551,386
-QwUserAskDlg = 355,868,324,130
+QwWarnMsgDlg = 1000,707,600,250
+restoreSigDlg = 820,416,929,597
+QwUserAskDlg = 410,1187,324,134
 [Relationship]
 hideRecursiceNode = FALSE
 [Session Cache]
@@ -456,10 +460,10 @@ bSVTBMode = TRUE
 SimMode = TRUE
 interactiveDebugging = TRUE
 KeepBreakPoints = FALSE
-vcs_svPath = ./simv_axi4_smoke_test
+vcs_svPath = ./simv_axi4_burst_incr_test
 uvmAware = TRUE
 smartlog = TRUE
-vcs_svOption = +UVM_TESTNAME=axi4_smoke_test +UVM_VERBOSITY=UVM_MEDIUM -l sim_axi4_smoke_test.log  -sml=verdi
+vcs_svOption = +UVM_TESTNAME=axi4_burst_incr_test +UVM_VERBOSITY=UVM_MEDIUM -l sim_axi4_burst_incr_test.log  -sml=verdi
 [SimulationPlus2]
 eventDumpUnfinish = FALSE
 dumpPowerRoot = FALSE
@@ -675,27 +679,27 @@ visualIndex = 1
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
 [VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column1]
-name = Code
-width = 60
-visualIndex = 2
-isHidden = FALSE
-isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column2]
 name = Type
 width = 60
 visualIndex = 3
 isHidden = TRUE
 isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column3]
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column2]
 name = Time
 width = 60
 visualIndex = 0
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column4]
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column3]
 name = Message
 width = 2000
 visualIndex = 4
+isHidden = FALSE
+isUserChangeColumnVisible = FALSE
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column4]
+name = Code
+width = 60
+visualIndex = 2
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
 [VIA.oneSearch.preference]
@@ -705,28 +709,28 @@ DefaultLogTimeUnit = "1.000000ns"
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0]
 parRuleSets = ""
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column0]
-name = Type
-width = 60
-visualIndex = 3
-isHidden = TRUE
-isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column1]
-name = Message
-width = 2000
-visualIndex = 4
-isHidden = FALSE
-isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column2]
 name = Time
 width = 60
 visualIndex = 0
 isHidden = TRUE
 isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column3]
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column1]
 name = Code
 width = 60
 visualIndex = 2
 isHidden = TRUE
+isUserChangeColumnVisible = FALSE
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column2]
+name = Type
+width = 60
+visualIndex = 3
+isHidden = TRUE
+isUserChangeColumnVisible = FALSE
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column3]
+name = Message
+width = 2000
+visualIndex = 4
+isHidden = FALSE
 isUserChangeColumnVisible = FALSE
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column4]
 name = Severity
@@ -755,7 +759,7 @@ scope_to_save_with_macro
 open_file_dir
 open_rc_file_dir
 getSignalForm = 0 0 800 479 100 30 100 30
-viewPort = 0 27 2560 1188 172 139
+viewPort = 0 27 2560 893 172 139
 signalSpacing = 5
 digitalSignalHeight = 15
 analogSignalHeight = 98
@@ -1026,7 +1030,8 @@ curveWindow_Drag&Drop_Mode = TRUE
 hspiceIncOpenMode = TRUE
 pcSelectMode = TRUE
 hierarchyDelimiter = /
-RecentFile1 = "\"/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/inter.fsdb\""
+RecentFile1 = "\"/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/signal.rc\""
+RecentFile2 = "\"/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/inter.fsdb\""
 open_file_time_range = FALSE
 value_window_aligment = Right
 signal_window_alignment = Auto
@@ -1352,7 +1357,7 @@ AddImportArgument = FALSE
 LineBreakWithScope = TRUE
 StopAfterCompileOption = -s
 [wave.0]
-viewPort = 0 27 2560 1188 172 139
+viewPort = 0 27 2560 893 172 139
 [wave.1]
 viewPort = 127 219 960 332 100 65
 [wave.2]
