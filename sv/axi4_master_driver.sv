@@ -39,10 +39,14 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
     // Semaphore for ID allocation
     local semaphore m_id_sem;
 
+    // Mailbox for read data response
+    local mailbox #(axi4_transaction) m_rd_rsp_mbox;
+
     // Constructor
     function new(string name = "axi4_master_driver", uvm_component parent = null);
         super.new(name, parent);
         m_id_sem = new(1);
+        m_rd_rsp_mbox = new();
 
         // Initialize latency stats
         m_rd_latency_stats.min_latency = '1;
@@ -105,41 +109,41 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
 
     // Reset all signals
     task reset_signals();
-        m_vif.master_cb.AWID     <= '0;
-        m_vif.master_cb.AWADDR   <= '0;
-        m_vif.master_cb.AWLEN    <= '0;
-        m_vif.master_cb.AWSIZE   <= '0;
-        m_vif.master_cb.AWBURST  <= '0;
-        m_vif.master_cb.AWLOCK   <= '0;
-        m_vif.master_cb.AWCACHE  <= '0;
-        m_vif.master_cb.AWPROT   <= '0;
-        m_vif.master_cb.AWQOS    <= '0;
-        m_vif.master_cb.AWREGION <= '0;
-        m_vif.master_cb.AWUSER   <= '0;
-        m_vif.master_cb.AWVALID  <= '0;
+        m_vif.master_cb.awid     <= '0;
+        m_vif.master_cb.awaddr   <= '0;
+        m_vif.master_cb.awlen    <= '0;
+        m_vif.master_cb.awsize   <= '0;
+        m_vif.master_cb.awburst  <= '0;
+        m_vif.master_cb.awlock   <= '0;
+        m_vif.master_cb.awcache  <= '0;
+        m_vif.master_cb.awprot   <= '0;
+        m_vif.master_cb.awqos    <= '0;
+        m_vif.master_cb.awregion <= '0;
+        m_vif.master_cb.awuser   <= '0;
+        m_vif.master_cb.awvalid  <= '0;
 
-        m_vif.master_cb.WDATA    <= '0;
-        m_vif.master_cb.WSTRB    <= '0;
-        m_vif.master_cb.WLAST    <= '0;
-        m_vif.master_cb.WUSER    <= '0;
-        m_vif.master_cb.WVALID   <= '0;
+        m_vif.master_cb.wdata    <= '0;
+        m_vif.master_cb.wstrb    <= '0;
+        m_vif.master_cb.wlast    <= '0;
+        m_vif.master_cb.wuser    <= '0;
+        m_vif.master_cb.wvalid   <= '0;
 
-        m_vif.master_cb.BREADY   <= '0;
+        m_vif.master_cb.bready   <= '0;
 
-        m_vif.master_cb.ARID     <= '0;
-        m_vif.master_cb.ARADDR   <= '0;
-        m_vif.master_cb.ARLEN    <= '0;
-        m_vif.master_cb.ARSIZE   <= '0;
-        m_vif.master_cb.ARBURST  <= '0;
-        m_vif.master_cb.ARLOCK   <= '0;
-        m_vif.master_cb.ARCACHE  <= '0;
-        m_vif.master_cb.ARPROT   <= '0;
-        m_vif.master_cb.ARQOS    <= '0;
-        m_vif.master_cb.ARREGION <= '0;
-        m_vif.master_cb.ARUSER   <= '0;
-        m_vif.master_cb.ARVALID  <= '0;
+        m_vif.master_cb.arid     <= '0;
+        m_vif.master_cb.araddr   <= '0;
+        m_vif.master_cb.arlen    <= '0;
+        m_vif.master_cb.arsize   <= '0;
+        m_vif.master_cb.arburst  <= '0;
+        m_vif.master_cb.arlock   <= '0;
+        m_vif.master_cb.arcache  <= '0;
+        m_vif.master_cb.arprot   <= '0;
+        m_vif.master_cb.arqos    <= '0;
+        m_vif.master_cb.arregion <= '0;
+        m_vif.master_cb.aruser   <= '0;
+        m_vif.master_cb.arvalid  <= '0;
 
-        m_vif.master_cb.RREADY   <= '0;
+        m_vif.master_cb.rready   <= '0;
 
         m_aw_outstanding = 0;
         m_ar_outstanding = 0;
@@ -287,6 +291,15 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             end
         join
 
+        // For read transactions, wait for read data to be collected
+        if (trans.m_trans_type == READ) begin
+            axi4_transaction rsp_trans;
+            m_rd_rsp_mbox.get(rsp_trans);
+            // Copy read data to original transaction
+            trans.m_wdata = rsp_trans.m_wdata;
+            trans.m_resp = rsp_trans.m_resp;
+        end
+
         // Wait for transaction interval
         if (m_cfg.m_trans_interval > 0) begin
             repeat(m_cfg.m_trans_interval) @(posedge m_vif.ACLK);
@@ -307,18 +320,18 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
         end
 
         // Drive address channel signals
-        m_vif.master_cb.AWID     <= trans.m_id;
-        m_vif.master_cb.AWADDR   <= trans.m_addr;
-        m_vif.master_cb.AWLEN    <= trans.m_len;
-        m_vif.master_cb.AWSIZE   <= trans.m_size;
-        m_vif.master_cb.AWBURST  <= trans.m_burst;
-        m_vif.master_cb.AWLOCK   <= trans.m_lock;
-        m_vif.master_cb.AWCACHE  <= trans.m_cache;
-        m_vif.master_cb.AWPROT   <= {trans.m_prot.privilege, trans.m_prot.secure, trans.m_prot.data};
-        m_vif.master_cb.AWQOS    <= trans.m_qos;
-        m_vif.master_cb.AWREGION <= trans.m_region;
-        m_vif.master_cb.AWUSER   <= trans.m_user;
-        m_vif.master_cb.AWVALID  <= 1;
+        m_vif.master_cb.awid     <= trans.m_id;
+        m_vif.master_cb.awaddr   <= trans.m_addr;
+        m_vif.master_cb.awlen    <= trans.m_len;
+        m_vif.master_cb.awsize   <= trans.m_size;
+        m_vif.master_cb.awburst  <= trans.m_burst;
+        m_vif.master_cb.awlock   <= trans.m_lock;
+        m_vif.master_cb.awcache  <= trans.m_cache;
+        m_vif.master_cb.awprot   <= {trans.m_prot.privilege, trans.m_prot.secure, trans.m_prot.data};
+        m_vif.master_cb.awqos    <= trans.m_qos;
+        m_vif.master_cb.awregion <= trans.m_region;
+        m_vif.master_cb.awuser   <= trans.m_user;
+        m_vif.master_cb.awvalid  <= 1;
 
         m_aw_outstanding++;
 
@@ -326,16 +339,17 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             "Driving AW: ID=%0d, ADDR=0x%08h, LEN=%0d, SIZE=%0d",
             trans.m_id, trans.m_addr, trans.m_len, trans.m_size), UVM_HIGH)
 
-        // Wait for handshake
-        while (!(m_vif.master_cb.AWREADY)) begin
+        // Wait for handshake (awvalid must remain stable until awready asserted)
+        @(posedge m_vif.ACLK);
+        while (!(m_vif.master_cb.awready)) begin
             @(posedge m_vif.ACLK);
         end
 
         // Track start cycle for latency
         m_wr_start_cycle.push_back(m_cycle_count);
 
-        @(posedge m_vif.ACLK);
-        m_vif.master_cb.AWVALID <= 0;
+        // De-assert awvalid after handshake completes
+        m_vif.master_cb.awvalid <= 0;
     endtask
 
     // Drive write data channel
@@ -363,30 +377,30 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             is_last_beat = (beat_count == beats_to_send - 1);
 
             // Drive write data
-            m_vif.master_cb.WDATA  <= trans.m_wdata[beat_count];
-            m_vif.master_cb.WSTRB  <= trans.m_wstrb[beat_count];
-            m_vif.master_cb.WLAST  <= is_last_beat;
-            m_vif.master_cb.WUSER  <= trans.m_user;
-            m_vif.master_cb.WVALID <= 1;
+            m_vif.master_cb.wdata  <= trans.m_wdata[beat_count];
+            m_vif.master_cb.wstrb  <= trans.m_wstrb[beat_count];
+            m_vif.master_cb.wlast  <= is_last_beat;
+            m_vif.master_cb.wuser  <= trans.m_user;
+            m_vif.master_cb.wvalid <= 1;
 
             `uvm_info(get_type_name(), $sformatf(
                 "Driving W beat %0d/%0d, WLAST=%b",
                 beat_count + 1, beats_to_send, is_last_beat), UVM_HIGH)
 
-            // Wait for handshake
-            while (!(m_vif.master_cb.WREADY)) begin
+            // Wait for handshake (wvalid must remain stable until wready asserted)
+            @(posedge m_vif.ACLK);
+            while (!(m_vif.master_cb.wready)) begin
                 @(posedge m_vif.ACLK);
             end
 
-            @(posedge m_vif.ACLK);
             beat_count++;
 
             if (is_last_beat) begin
-                m_vif.master_cb.WVALID <= 0;
+                m_vif.master_cb.wvalid <= 0;
             end
         end
 
-        m_vif.master_cb.WVALID <= 0;
+        m_vif.master_cb.wvalid <= 0;
     endtask
 
     // Handle write response channel
@@ -398,13 +412,13 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             if (!m_vif.ARESETn) continue;
 
             // Assert BREADY
-            m_vif.master_cb.BREADY <= 1;
+            m_vif.master_cb.bready <= 1;
 
-            if (m_vif.master_cb.BVALID) begin
+            if (m_vif.master_cb.bvalid) begin
                 // Calculate latency
                 if (m_wr_start_cycle.size() > 0) begin
                     latency = m_cycle_count - m_wr_start_cycle.pop_front();
-                    update_wr_latency_stats(latency, m_vif.master_cb.BID);
+                    update_wr_latency_stats(latency, m_vif.master_cb.bid);
                 end
 
                 m_aw_outstanding--;
@@ -413,11 +427,11 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
                 end
 
                 // Update bandwidth
-                m_bw_stats.total_bytes += (m_vif.master_cb.BID + 1) * 4;  // Approximate
+                m_bw_stats.total_bytes += (m_vif.master_cb.bid + 1) * 4;  // Approximate
 
                 `uvm_info(get_type_name(), $sformatf(
                     "B response received: BID=%0d, BRESP=%0d, Latency=%0d",
-                    m_vif.master_cb.BID, m_vif.master_cb.BRESP, latency), UVM_HIGH)
+                    m_vif.master_cb.bid, m_vif.master_cb.bresp, latency), UVM_HIGH)
             end
         end
     endtask
@@ -430,18 +444,18 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
         end
 
         // Drive address channel signals
-        m_vif.master_cb.ARID     <= trans.m_id;
-        m_vif.master_cb.ARADDR   <= trans.m_addr;
-        m_vif.master_cb.ARLEN    <= trans.m_len;
-        m_vif.master_cb.ARSIZE   <= trans.m_size;
-        m_vif.master_cb.ARBURST  <= trans.m_burst;
-        m_vif.master_cb.ARLOCK   <= trans.m_lock;
-        m_vif.master_cb.ARCACHE  <= trans.m_cache;
-        m_vif.master_cb.ARPROT   <= {trans.m_prot.privilege, trans.m_prot.secure, trans.m_prot.data};
-        m_vif.master_cb.ARQOS    <= trans.m_qos;
-        m_vif.master_cb.ARREGION <= trans.m_region;
-        m_vif.master_cb.ARUSER   <= trans.m_user;
-        m_vif.master_cb.ARVALID  <= 1;
+        m_vif.master_cb.arid     <= trans.m_id;
+        m_vif.master_cb.araddr   <= trans.m_addr;
+        m_vif.master_cb.arlen    <= trans.m_len;
+        m_vif.master_cb.arsize   <= trans.m_size;
+        m_vif.master_cb.arburst  <= trans.m_burst;
+        m_vif.master_cb.arlock   <= trans.m_lock;
+        m_vif.master_cb.arcache  <= trans.m_cache;
+        m_vif.master_cb.arprot   <= {trans.m_prot.privilege, trans.m_prot.secure, trans.m_prot.data};
+        m_vif.master_cb.arqos    <= trans.m_qos;
+        m_vif.master_cb.arregion <= trans.m_region;
+        m_vif.master_cb.aruser   <= trans.m_user;
+        m_vif.master_cb.arvalid  <= 1;
 
         m_ar_outstanding++;
 
@@ -449,46 +463,66 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             "Driving AR: ID=%0d, ADDR=0x%08h, LEN=%0d, SIZE=%0d",
             trans.m_id, trans.m_addr, trans.m_len, trans.m_size), UVM_HIGH)
 
-        // Wait for handshake
-        while (!(m_vif.master_cb.ARREADY)) begin
+        // Wait for handshake (arvalid must remain stable until arready asserted)
+        @(posedge m_vif.ACLK);
+        while (!(m_vif.master_cb.arready)) begin
             @(posedge m_vif.ACLK);
         end
 
         // Track start cycle for latency
         m_rd_start_cycle.push_back(m_cycle_count);
 
-        @(posedge m_vif.ACLK);
-        m_vif.master_cb.ARVALID <= 0;
+        // De-assert arvalid after handshake completes
+        m_vif.master_cb.arvalid <= 0;
     endtask
 
     // Handle read data channel
     task handle_r_channel();
         int beat_count;
         int latency;
+        axi4_transaction rd_trans;
+        bit [255:0] rdata_queue[$];
 
         forever begin
             @(posedge m_vif.ACLK);
             if (!m_vif.ARESETn) continue;
 
             // Assert RREADY
-            m_vif.master_cb.RREADY <= 1;
+            m_vif.master_cb.rready <= 1;
 
-            if (m_vif.master_cb.RVALID) begin
+            if (m_vif.master_cb.rvalid) begin
                 `uvm_info(get_type_name(), $sformatf(
-                    "R data received: RID=%0d, RLAST=%b",
-                    m_vif.master_cb.RID, m_vif.master_cb.RLAST), UVM_HIGH)
+                    "R data received: RID=%0d, RDATA=0x%08h, RLAST=%b",
+                    m_vif.master_cb.rid, m_vif.master_cb.rdata, m_vif.master_cb.rlast), UVM_HIGH)
 
-                if (m_vif.master_cb.RLAST) begin
+                // Collect read data
+                rdata_queue.push_back(m_vif.master_cb.rdata);
+
+                if (m_vif.master_cb.rlast) begin
                     m_ar_outstanding--;
+
+                    // Create response transaction
+                    rd_trans = axi4_transaction::type_id::create("rd_trans");
+                    rd_trans.m_wdata = new[rdata_queue.size()];
+                    foreach (rdata_queue[i]) begin
+                        rd_trans.m_wdata[i] = rdata_queue[i];
+                    end
+                    rd_trans.m_resp = axi4_resp_t'(m_vif.master_cb.rresp);
+
+                    // Send to mailbox
+                    m_rd_rsp_mbox.put(rd_trans);
+
+                    // Clear queue
+                    rdata_queue.delete();
 
                     // Calculate latency
                     if (m_rd_start_cycle.size() > 0) begin
                         latency = m_cycle_count - m_rd_start_cycle.pop_front();
-                        update_rd_latency_stats(latency, m_vif.master_cb.RID);
+                        update_rd_latency_stats(latency, m_vif.master_cb.rid);
                     end
 
                     // Update bandwidth
-                    m_bw_stats.total_bytes += (m_vif.master_cb.RID + 1) * 4;  // Approximate
+                    m_bw_stats.total_bytes += (m_vif.master_cb.rid + 1) * 4;  // Approximate
                 end
             end
         end
@@ -587,8 +621,7 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
         if (m_rd_latency_stats.trans_count > 0) begin
             avg_rd_latency = real'(m_rd_latency_stats.total_latency) /
                              real'(m_rd_latency_stats.trans_count);
-            `uvm_info(get_type_name(), $sformatf(
-                "Read Latency Statistics:", UVM_NONE), UVM_NONE)
+            `uvm_info(get_type_name(), "Read Latency Statistics:", UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
                 "  Total Read Transactions: %0d", m_rd_latency_stats.trans_count), UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
@@ -605,8 +638,7 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
         if (m_wr_latency_stats.trans_count > 0) begin
             avg_wr_latency = real'(m_wr_latency_stats.total_latency) /
                              real'(m_wr_latency_stats.trans_count);
-            `uvm_info(get_type_name(), $sformatf(
-                "Write Latency Statistics:", UVM_NONE), UVM_NONE)
+            `uvm_info(get_type_name(), "Write Latency Statistics:", UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
                 "  Total Write Transactions: %0d", m_wr_latency_stats.trans_count), UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
@@ -627,8 +659,7 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             m_bw_stats.bandwidth_mbps = m_cfg.m_clock_freq_mhz * m_cfg.m_data_width;
             efficiency = (bandwidth_mbps / m_bw_stats.bandwidth_mbps) * 100.0;
 
-            `uvm_info(get_type_name(), $sformatf(
-                "Bandwidth Statistics:", UVM_NONE), UVM_NONE)
+            `uvm_info(get_type_name(), "Bandwidth Statistics:", UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
                 "  Total Bytes Transferred: %0d", m_bw_stats.total_bytes), UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(

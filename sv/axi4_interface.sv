@@ -4,6 +4,9 @@
 `ifndef AXI4_INTERFACE_SV
 `define AXI4_INTERFACE_SV
 
+import uvm_pkg::*;
+`include "uvm_macros.svh"
+
 interface axi4_interface #(
     parameter int DATA_WIDTH = 32,
     parameter int ADDR_WIDTH = 32,
@@ -18,86 +21,86 @@ interface axi4_interface #(
     localparam int USER_WIDTH = 16;
 
     // Write Address Channel
-    logic [ID_WIDTH-1:0]    AWID;
-    logic [ADDR_WIDTH-1:0]  AWADDR;
-    logic [7:0]             AWLEN;
-    logic [2:0]             AWSIZE;
-    logic [1:0]             AWBURST;
-    logic                   AWLOCK;
-    logic [3:0]             AWCACHE;
-    logic [2:0]             AWPROT;
-    logic [3:0]             AWQOS;
-    logic [3:0]             AWREGION;
-    logic [USER_WIDTH-1:0]  AWUSER;
-    logic                   AWVALID;
-    logic                   AWREADY;
+    logic [ID_WIDTH-1:0]    awid;
+    logic [ADDR_WIDTH-1:0]  awaddr;
+    logic [7:0]             awlen;
+    logic [2:0]             awsize;
+    logic [1:0]             awburst;
+    logic                   awlock;
+    logic [3:0]             awcache;
+    logic [2:0]             awprot;
+    logic [3:0]             awqos;
+    logic [3:0]             awregion;
+    logic [USER_WIDTH-1:0]  awuser;
+    logic                   awvalid;
+    logic                   awready;
 
     // Write Data Channel
-    logic [DATA_WIDTH-1:0]  WDATA;
-    logic [STRB_WIDTH-1:0]  WSTRB;
-    logic                   WLAST;
-    logic [USER_WIDTH-1:0]  WUSER;
-    logic                   WVALID;
-    logic                   WREADY;
+    logic [DATA_WIDTH-1:0]  wdata;
+    logic [STRB_WIDTH-1:0]  wstrb;
+    logic                   wlast;
+    logic [USER_WIDTH-1:0]  wuser;
+    logic                   wvalid;
+    logic                   wready;
 
     // Write Response Channel
-    logic [ID_WIDTH-1:0]    BID;
-    logic [1:0]             BRESP;
-    logic [USER_WIDTH-1:0]  BUSER;
-    logic                   BVALID;
-    logic                   BREADY;
+    logic [ID_WIDTH-1:0]    bid;
+    logic [1:0]             bresp;
+    logic [USER_WIDTH-1:0]  buser;
+    logic                   bvalid;
+    logic                   bready;
 
     // Read Address Channel
-    logic [ID_WIDTH-1:0]    ARID;
-    logic [ADDR_WIDTH-1:0]  ARADDR;
-    logic [7:0]             ARLEN;
-    logic [2:0]             ARSIZE;
-    logic [1:0]             ARBURST;
-    logic                   ARLOCK;
-    logic [3:0]             ARCACHE;
-    logic [2:0]             ARPROT;
-    logic [3:0]             ARQOS;
-    logic [3:0]             ARREGION;
-    logic [USER_WIDTH-1:0]  ARUSER;
-    logic                   ARVALID;
-    logic                   ARREADY;
+    logic [ID_WIDTH-1:0]    arid;
+    logic [ADDR_WIDTH-1:0]  araddr;
+    logic [7:0]             arlen;
+    logic [2:0]             arsize;
+    logic [1:0]             arburst;
+    logic                   arlock;
+    logic [3:0]             arcache;
+    logic [2:0]             arprot;
+    logic [3:0]             arqos;
+    logic [3:0]             arregion;
+    logic [USER_WIDTH-1:0]  aruser;
+    logic                   arvalid;
+    logic                   arready;
 
     // Read Data Channel
-    logic [ID_WIDTH-1:0]    RID;
-    logic [DATA_WIDTH-1:0]  RDATA;
-    logic [1:0]             RRESP;
-    logic                   RLAST;
-    logic [USER_WIDTH-1:0]  RUSER;
-    logic                   RVALID;
-    logic                   RREADY;
+    logic [ID_WIDTH-1:0]    rid;
+    logic [DATA_WIDTH-1:0]  rdata;
+    logic [1:0]             rresp;
+    logic                   rlast;
+    logic [USER_WIDTH-1:0]  ruser;
+    logic                   rvalid;
+    logic                   rready;
 
     // Master clocking block
     clocking master_cb @(posedge ACLK);
         default input #1step output #0;
 
         // Write Address Channel
-        output AWID, AWADDR, AWLEN, AWSIZE, AWBURST, AWLOCK;
-        output AWCACHE, AWPROT, AWQOS, AWREGION, AWUSER;
-        output AWVALID;
-        input AWREADY;
+        output awid, awaddr, awlen, awsize, awburst, awlock;
+        output awcache, awprot, awqos, awregion, awuser;
+        output awvalid;
+        input awready;
 
         // Write Data Channel
-        output WDATA, WSTRB, WLAST, WUSER, WVALID;
-        input WREADY;
+        output wdata, wstrb, wlast, wuser, wvalid;
+        input wready;
 
         // Write Response Channel
-        output BREADY;
-        input BID, BRESP, BUSER, BVALID;
+        output bready;
+        input bid, bresp, buser, bvalid;
 
         // Read Address Channel
-        output ARID, ARADDR, ARLEN, ARSIZE, ARBURST, ARLOCK;
-        output ARCACHE, ARPROT, ARQOS, ARREGION, ARUSER;
-        output ARVALID;
-        input ARREADY;
+        output arid, araddr, arlen, arsize, arburst, arlock;
+        output arcache, arprot, arqos, arregion, aruser;
+        output arvalid;
+        input arready;
 
         // Read Data Channel
-        output RREADY;
-        input RID, RDATA, RRESP, RLAST, RUSER, RVALID;
+        output rready;
+        input rid, rdata, rresp, rlast, ruser, rvalid;
     endclocking : master_cb
 
     // Monitor clocking block
@@ -105,56 +108,56 @@ interface axi4_interface #(
         default input #1step output #0;
 
         // Write Address Channel
-        input AWID, AWADDR, AWLEN, AWSIZE, AWBURST, AWLOCK;
-        input AWCACHE, AWPROT, AWQOS, AWREGION, AWUSER;
-        input AWVALID, AWREADY;
+        input awid, awaddr, awlen, awsize, awburst, awlock;
+        input awcache, awprot, awqos, awregion, awuser;
+        input awvalid, awready;
 
         // Write Data Channel
-        input WDATA, WSTRB, WLAST, WUSER, WVALID, WREADY;
+        input wdata, wstrb, wlast, wuser, wvalid, wready;
 
         // Write Response Channel
-        input BID, BRESP, BUSER, BVALID, BREADY;
+        input bid, bresp, buser, bvalid, bready;
 
         // Read Address Channel
-        input ARID, ARADDR, ARLEN, ARSIZE, ARBURST, ARLOCK;
-        input ARCACHE, ARPROT, ARQOS, ARREGION, ARUSER;
-        input ARVALID, ARREADY;
+        input arid, araddr, arlen, arsize, arburst, arlock;
+        input arcache, arprot, arqos, arregion, aruser;
+        input arvalid, arready;
 
         // Read Data Channel
-        input RID, RDATA, RRESP, RLAST, RUSER, RVALID, RREADY;
+        input rid, rdata, rresp, rlast, ruser, rvalid, rready;
     endclocking : monitor_cb
 
     // Protocol Assertions
     // Assertion 1: AWVALID stability - Master must hold AWVALID until AWREADY goes high
     property p_awvalid_stable;
         @(posedge ACLK) disable iff (!ARESETn)
-        AWVALID && !AWREADY |=> AWVALID;
+        awvalid && !awready |=> awvalid;
     endproperty
 
     assert property (p_awvalid_stable)
-        else $error("AWVALID must remain stable until AWREADY asserted");
+        else `uvm_error("AXI4_ASSERT", "awvalid must remain stable until awready asserted")
 
     cover property (p_awvalid_stable);
 
     // Assertion 2: ARVALID stability - Master must hold ARVALID until ARREADY goes high
     property p_arvalid_stable;
         @(posedge ACLK) disable iff (!ARESETn)
-        ARVALID && !ARREADY |=> ARVALID;
+        arvalid && !arready |=> arvalid;
     endproperty
 
     assert property (p_arvalid_stable)
-        else $error("ARVALID must remain stable until ARREADY asserted");
+        else `uvm_error("AXI4_ASSERT", "arvalid must remain stable until arready asserted")
 
     cover property (p_arvalid_stable);
 
     // Assertion 3: WVALID stability - Master must hold WVALID until WREADY goes high
     property p_wvalid_stable;
         @(posedge ACLK) disable iff (!ARESETn)
-        WVALID && !WREADY |=> WVALID;
+        wvalid && !wready |=> wvalid;
     endproperty
 
     assert property (p_wvalid_stable)
-        else $error("WVALID must remain stable until WREADY asserted");
+        else `uvm_error("AXI4_ASSERT", "wvalid must remain stable until wready asserted")
 
     cover property (p_wvalid_stable);
 
@@ -163,12 +166,12 @@ interface axi4_interface #(
     property p_wlast_correct;
         int beat_count = 0;
         @(posedge ACLK) disable iff (!ARESETn)
-        (WVALID && WREADY, beat_count = (WLAST) ? 0 : beat_count + 1)
-        |-> (WLAST |-> beat_count == AWLEN);
+        (wvalid && wready, beat_count = (wlast) ? 0 : beat_count + 1)
+        |-> (wlast |-> beat_count == awlen);
     endproperty
 
     assert property (p_wlast_correct)
-        else $error("WLAST must be asserted on the correct beat");
+        else `uvm_error("AXI4_ASSERT", "wlast must be asserted on the correct beat")
 
     cover property (p_wlast_correct);
 
@@ -176,12 +179,12 @@ interface axi4_interface #(
     property p_rlast_correct;
         int beat_count = 0;
         @(posedge ACLK) disable iff (!ARESETn)
-        (RVALID && RREADY, beat_count = (RLAST) ? 0 : beat_count + 1)
-        |-> (RLAST |-> beat_count == ARLEN);
+        (rvalid && rready, beat_count = (rlast) ? 0 : beat_count + 1)
+        |-> (rlast |-> beat_count == arlen);
     endproperty
 
     assert property (p_rlast_correct)
-        else $error("RLAST must be asserted on the correct beat");
+        else `uvm_error("AXI4_ASSERT", "rlast must be asserted on the correct beat")
 
     cover property (p_rlast_correct);
 
@@ -189,69 +192,69 @@ interface axi4_interface #(
     // AWLEN/ARLEN must be 0-255, for FIXED burst <= 15, for WRAP burst must be 1,3,7,15
     property p_awlen_range;
         @(posedge ACLK) disable iff (!ARESETn)
-        AWVALID |->
-            (AWLEN <= 255) &&
-            ((AWBURST != 2'b00) || (AWLEN <= 15)) &&  // FIXED
-            ((AWBURST != 2'b10) || (AWLEN inside {1, 3, 7, 15}));  // WRAP
+        awvalid |->
+            (awlen <= 255) &&
+            ((awburst != 2'b00) || (awlen <= 15)) &&  // FIXED
+            ((awburst != 2'b10) || (awlen inside {1, 3, 7, 15}));  // WRAP
     endproperty
 
     assert property (p_awlen_range)
-        else $error("AWLEN out of valid range for burst type");
+        else `uvm_error("AXI4_ASSERT", "awlen out of valid range for burst type")
 
     cover property (p_awlen_range);
 
     property p_arlen_range;
         @(posedge ACLK) disable iff (!ARESETn)
-        ARVALID |->
-            (ARLEN <= 255) &&
-            ((ARBURST != 2'b00) || (ARLEN <= 15)) &&  // FIXED
-            ((ARBURST != 2'b10) || (ARLEN inside {1, 3, 7, 15}));  // WRAP
+        arvalid |->
+            (arlen <= 255) &&
+            ((arburst != 2'b00) || (arlen <= 15)) &&  // FIXED
+            ((arburst != 2'b10) || (arlen inside {1, 3, 7, 15}));  // WRAP
     endproperty
 
     assert property (p_arlen_range)
-        else $error("ARLEN out of valid range for burst type");
+        else `uvm_error("AXI4_ASSERT", "arlen out of valid range for burst type")
 
     cover property (p_arlen_range);
 
     // Assertion 7: AXBURST encoding validation
     property p_awburst_valid;
         @(posedge ACLK) disable iff (!ARESETn)
-        AWVALID |-> (AWBURST != 2'b11);
+        awvalid |-> (awburst != 2'b11);
     endproperty
 
     assert property (p_awburst_valid)
-        else $error("AWBURST must not be reserved value 2'b11");
+        else `uvm_error("AXI4_ASSERT", "awburst must not be reserved value 2'b11")
 
     cover property (p_awburst_valid);
 
     property p_arburst_valid;
         @(posedge ACLK) disable iff (!ARESETn)
-        ARVALID |-> (ARBURST != 2'b11);
+        arvalid |-> (arburst != 2'b11);
     endproperty
 
     assert property (p_arburst_valid)
-        else $error("ARBURST must not be reserved value 2'b11");
+        else `uvm_error("AXI4_ASSERT", "arburst must not be reserved value 2'b11")
 
     cover property (p_arburst_valid);
 
     // Assertion 8: AXSIZE range validation
     property p_awsize_valid;
         @(posedge ACLK) disable iff (!ARESETn)
-        AWVALID |-> ((1 << AWSIZE) <= (DATA_WIDTH / 8));
+        awvalid |-> ((1 << awsize) <= (DATA_WIDTH / 8));
     endproperty
 
     assert property (p_awsize_valid)
-        else $error("AWSIZE exceeds data width capacity");
+        else `uvm_error("AXI4_ASSERT", "awsize exceeds data width capacity")
 
     cover property (p_awsize_valid);
 
     property p_arsize_valid;
         @(posedge ACLK) disable iff (!ARESETn)
-        ARVALID |-> ((1 << ARSIZE) <= (DATA_WIDTH / 8));
+        arvalid |-> ((1 << arsize) <= (DATA_WIDTH / 8));
     endproperty
 
     assert property (p_arsize_valid)
-        else $error("ARSIZE exceeds data width capacity");
+        else `uvm_error("AXI4_ASSERT", "arsize exceeds data width capacity")
 
     cover property (p_arsize_valid);
 
@@ -259,43 +262,42 @@ interface axi4_interface #(
     // From WVALID assertion to WREADY, WDATA/WSTRB/WLAST must remain stable
     property p_wdata_stable;
         @(posedge ACLK) disable iff (!ARESETn)
-        (WVALID && !WREADY)
-        |=> (WVALID && !WREADY) |-> (($past(WDATA) == WDATA) &&
-                                       ($past(WSTRB) == WSTRB) &&
-                                       ($past(WLAST) == WLAST));
+        (wvalid && !wready)
+        |=> (wvalid && !wready) |-> (($past(wdata) == wdata) &&
+                                       ($past(wstrb) == wstrb) &&
+                                       ($past(wlast) == wlast));
     endproperty
 
     assert property (p_wdata_stable)
-        else $error("WDATA/WSTRB/WLAST must remain stable while WVALID asserted and WREADY not asserted");
+        else `uvm_error("AXI4_ASSERT", "wdata/wstrb/wlast must remain stable while wvalid asserted and wready not asserted")
 
     cover property (p_wdata_stable);
 
     // Assertion 10: AR channel data stability
     property p_ardata_stable;
         @(posedge ACLK) disable iff (!ARESETn)
-        (ARVALID && !ARREADY)
-        |=> (ARVALID && !ARREADY) |-> (
-            $past(ARADDR) == ARADDR &&
-            $past(ARID) == ARID &&
-            $past(ARLEN) == ARLEN &&
-            $past(ARSIZE) == ARSIZE &&
-            $past(ARBURST) == ARBURST
-        );
+        (arvalid && !arready)
+        |=> (arvalid && !arready) |-> (
+            $past(araddr) == araddr &&
+            $past(arid) == arid &&
+            $past(arlen) == arlen &&
+            $past(arsize) == arsize &&
+            $past(arburst) == arburst);
     endproperty
 
     assert property (p_ardata_stable)
-        else $error("AR channel signals must remain stable while ARVALID asserted and ARREADY not asserted");
+        else `uvm_error("AXI4_ASSERT", "AR channel signals must remain stable while arvalid asserted and arready not asserted")
 
     cover property (p_ardata_stable);
 
     // Assertion 11: WSTRB width matching
     property p_wstrb_width;
         @(posedge ACLK) disable iff (!ARESETn)
-        1 |-> $bits(WSTRB) == (DATA_WIDTH / 8);
+        1 |-> $bits(wstrb) == (DATA_WIDTH / 8);
     endproperty
 
     assert property (p_wstrb_width)
-        else $error("WSTRB width must equal DATA_WIDTH/8");
+        else `uvm_error("AXI4_ASSERT", "wstrb width must equal DATA_WIDTH/8")
 
     // Assertion 12: Unaligned first beat WSTRB
     // If starting address is unaligned, first beat WSTRB must have lower bytes masked

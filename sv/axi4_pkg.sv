@@ -1,6 +1,8 @@
 // AXI4 VIP Package
 // Contains all AXI4 VIP components
 
+`timescale 1ns/1ps
+
 `ifndef AXI4_PKG_SV
 `define AXI4_PKG_SV
 
@@ -24,6 +26,7 @@ package axi4_pkg;
 
     // Sequences
     `include "axi4_sequence.sv"
+    `include "seq_lib.sv"
 
     // Monitor
     `include "axi4_monitor.sv"

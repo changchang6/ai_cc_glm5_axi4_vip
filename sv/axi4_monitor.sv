@@ -116,20 +116,20 @@ class axi4_monitor extends uvm_monitor;
                 continue;
             end
 
-            if (m_vif.monitor_cb.AWVALID && m_vif.monitor_cb.AWREADY) begin
+            if (m_vif.monitor_cb.awvalid && m_vif.monitor_cb.awready) begin
                 // Create new write transaction
                 trans = axi4_transaction::type_id::create("wr_trans");
                 trans.m_trans_type = WRITE;
-                trans.m_id         = m_vif.monitor_cb.AWID;
-                trans.m_addr       = m_vif.monitor_cb.AWADDR;
-                trans.m_len        = m_vif.monitor_cb.AWLEN;
-                trans.m_size       = m_vif.monitor_cb.AWSIZE;
-                trans.m_burst      = axi4_burst_t'(m_vif.monitor_cb.AWBURST);
-                trans.m_lock       = m_vif.monitor_cb.AWLOCK;
-                trans.m_cache      = m_vif.monitor_cb.AWCACHE;
-                trans.m_qos        = m_vif.monitor_cb.AWQOS;
-                trans.m_region     = m_vif.monitor_cb.AWREGION;
-                trans.m_user       = m_vif.monitor_cb.AWUSER;
+                trans.m_id         = m_vif.monitor_cb.awid;
+                trans.m_addr       = m_vif.monitor_cb.awaddr;
+                trans.m_len        = m_vif.monitor_cb.awlen;
+                trans.m_size       = m_vif.monitor_cb.awsize;
+                trans.m_burst      = axi4_burst_t'(m_vif.monitor_cb.awburst);
+                trans.m_lock       = m_vif.monitor_cb.awlock;
+                trans.m_cache      = m_vif.monitor_cb.awcache;
+                trans.m_qos        = m_vif.monitor_cb.awqos;
+                trans.m_region     = m_vif.monitor_cb.awregion;
+                trans.m_user       = m_vif.monitor_cb.awuser;
 
                 // Initialize data arrays
                 trans.m_wdata = new[trans.m_len + 1];
@@ -151,36 +151,42 @@ class axi4_monitor extends uvm_monitor;
         end
     endtask
 
+    // Track which transactions have received their W data
+    bit m_wr_data_done[$];
+
     // Monitor write data channel
     task monitor_w_channel();
-        int beat_count[$];
+        int beat_count;
         int trans_idx;
 
         forever begin
             @(posedge m_vif.ACLK);
             if (!m_vif.ARESETn) begin
-                beat_count.delete();
+                beat_count = 0;
+                trans_idx = 0;
+                m_wr_data_done.delete();
                 continue;
             end
 
-            if (m_vif.monitor_cb.WVALID && m_vif.monitor_cb.WREADY) begin
-                // Find matching transaction (by order, could be enhanced with WID if available)
-                if (m_wr_trans_q.size() > 0) begin
-                    // For now, assume in-order write data
-                    // In real AXI4, WID was removed, data must match address order
-                    trans_idx = 0;
+            if (m_vif.monitor_cb.wvalid && m_vif.monitor_cb.wready) begin
+                // Find first transaction that hasn't received all its W data
+                // In AXI4, W data comes in order of AW addresses
+                trans_idx = m_wr_data_done.size();
 
+                if (trans_idx < m_wr_trans_q.size()) begin
                     // Store write data
-                    m_wr_trans_q[trans_idx].m_wdata[beat_count[trans_idx]] = m_vif.monitor_cb.WDATA;
-                    m_wr_trans_q[trans_idx].m_wstrb[beat_count[trans_idx]] = m_vif.monitor_cb.WSTRB;
+                    m_wr_trans_q[trans_idx].m_wdata[beat_count] = m_vif.monitor_cb.wdata;
+                    m_wr_trans_q[trans_idx].m_wstrb[beat_count] = m_vif.monitor_cb.wstrb;
 
-                    `uvm_info(get_type_name(), $sformatf("W Channel: Beat %0d, WLAST=%b",
-                        beat_count[trans_idx], m_vif.monitor_cb.WLAST), UVM_HIGH)
+                    `uvm_info(get_type_name(), $sformatf("W Channel: Trans %0d, Beat %0d, WLAST=%b",
+                        trans_idx, beat_count, m_vif.monitor_cb.wlast), UVM_HIGH)
 
-                    if (m_vif.monitor_cb.WLAST) begin
-                        beat_count[trans_idx] = 0;
+                    if (m_vif.monitor_cb.wlast) begin
+                        // Mark this transaction as having received all W data
+                        m_wr_data_done.push_back(1);
+                        beat_count = 0;
                     end else begin
-                        beat_count[trans_idx]++;
+                        beat_count++;
                     end
                 end
             end
@@ -200,11 +206,11 @@ class axi4_monitor extends uvm_monitor;
                 continue;
             end
 
-            if (m_vif.monitor_cb.BVALID && m_vif.monitor_cb.BREADY) begin
+            if (m_vif.monitor_cb.bvalid && m_vif.monitor_cb.bready) begin
                 // Find matching transaction by BID
                 trans = null;
                 for (int i = 0; i < m_wr_trans_q.size(); i++) begin
-                    if (m_wr_trans_q[i].m_id == m_vif.monitor_cb.BID) begin
+                    if (m_wr_trans_q[i].m_id == m_vif.monitor_cb.bid) begin
                         trans = m_wr_trans_q[i];
                         trans_idx = i;
                         start_cycle = m_wr_timeout_q[i];
@@ -213,7 +219,7 @@ class axi4_monitor extends uvm_monitor;
                 end
 
                 if (trans != null) begin
-                    trans.m_resp = axi4_resp_t'(m_vif.monitor_cb.BRESP);
+                    trans.m_resp = axi4_resp_t'(m_vif.monitor_cb.bresp);
 
                     // Calculate latency (BVALID to last W data already sent)
                     latency = m_cycle_count - start_cycle;
@@ -231,12 +237,15 @@ class axi4_monitor extends uvm_monitor;
                     // Send to analysis port
                     m_ap.write(trans);
 
-                    // Remove from queue
+                    // Remove from queue (but maintain W data tracking)
                     m_wr_trans_q.delete(trans_idx);
                     m_wr_timeout_q.delete(trans_idx);
+                    if (trans_idx < m_wr_data_done.size()) begin
+                        m_wr_data_done.delete(trans_idx);
+                    end
                 end else begin
                     `uvm_warning(get_type_name(), $sformatf(
-                        "B response received with unknown BID=%0d", m_vif.monitor_cb.BID))
+                        "B response received with unknown BID=%0d", m_vif.monitor_cb.bid))
                 end
             end
         end
@@ -254,20 +263,20 @@ class axi4_monitor extends uvm_monitor;
                 continue;
             end
 
-            if (m_vif.monitor_cb.ARVALID && m_vif.monitor_cb.ARREADY) begin
+            if (m_vif.monitor_cb.arvalid && m_vif.monitor_cb.arready) begin
                 // Create new read transaction
                 trans = axi4_transaction::type_id::create("rd_trans");
                 trans.m_trans_type = READ;
-                trans.m_id         = m_vif.monitor_cb.ARID;
-                trans.m_addr       = m_vif.monitor_cb.ARADDR;
-                trans.m_len        = m_vif.monitor_cb.ARLEN;
-                trans.m_size       = m_vif.monitor_cb.ARSIZE;
-                trans.m_burst      = axi4_burst_t'(m_vif.monitor_cb.ARBURST);
-                trans.m_lock       = m_vif.monitor_cb.ARLOCK;
-                trans.m_cache      = m_vif.monitor_cb.ARCACHE;
-                trans.m_qos        = m_vif.monitor_cb.ARQOS;
-                trans.m_region     = m_vif.monitor_cb.ARREGION;
-                trans.m_user       = m_vif.monitor_cb.ARUSER;
+                trans.m_id         = m_vif.monitor_cb.arid;
+                trans.m_addr       = m_vif.monitor_cb.araddr;
+                trans.m_len        = m_vif.monitor_cb.arlen;
+                trans.m_size       = m_vif.monitor_cb.arsize;
+                trans.m_burst      = axi4_burst_t'(m_vif.monitor_cb.arburst);
+                trans.m_lock       = m_vif.monitor_cb.arlock;
+                trans.m_cache      = m_vif.monitor_cb.arcache;
+                trans.m_qos        = m_vif.monitor_cb.arqos;
+                trans.m_region     = m_vif.monitor_cb.arregion;
+                trans.m_user       = m_vif.monitor_cb.aruser;
 
                 // Initialize data arrays
                 trans.m_wdata = new[trans.m_len + 1];
@@ -303,11 +312,11 @@ class axi4_monitor extends uvm_monitor;
                 continue;
             end
 
-            if (m_vif.monitor_cb.RVALID && m_vif.monitor_cb.RREADY) begin
+            if (m_vif.monitor_cb.rvalid && m_vif.monitor_cb.rready) begin
                 // Find matching transaction by RID
                 trans = null;
                 for (int i = 0; i < m_rd_trans_q.size(); i++) begin
-                    if (m_rd_trans_q[i].m_id == m_vif.monitor_cb.RID) begin
+                    if (m_rd_trans_q[i].m_id == m_vif.monitor_cb.rid) begin
                         trans = m_rd_trans_q[i];
                         trans_idx = i;
                         start_cycle = m_rd_timeout_q[i];
@@ -316,14 +325,19 @@ class axi4_monitor extends uvm_monitor;
                 end
 
                 if (trans != null) begin
+                    // Ensure beat_count has enough entries
+                    while (beat_count.size() <= trans_idx) begin
+                        beat_count.push_back(0);
+                    end
+
                     // Store read data
-                    trans.m_wdata[beat_count[trans_idx]] = m_vif.monitor_cb.RDATA;
-                    trans.m_resp = axi4_resp_t'(m_vif.monitor_cb.RRESP);
+                    trans.m_wdata[beat_count[trans_idx]] = m_vif.monitor_cb.rdata;
+                    trans.m_resp = axi4_resp_t'(m_vif.monitor_cb.rresp);
 
                     `uvm_info(get_type_name(), $sformatf("R Channel: Beat %0d, RLAST=%b",
-                        beat_count[trans_idx], m_vif.monitor_cb.RLAST), UVM_HIGH)
+                        beat_count[trans_idx], m_vif.monitor_cb.rlast), UVM_HIGH)
 
-                    if (m_vif.monitor_cb.RLAST) begin
+                    if (m_vif.monitor_cb.rlast) begin
                         // Calculate latency
                         latency = m_cycle_count - start_cycle;
 
@@ -349,7 +363,7 @@ class axi4_monitor extends uvm_monitor;
                     end
                 end else begin
                     `uvm_warning(get_type_name(), $sformatf(
-                        "R data received with unknown RID=%0d", m_vif.monitor_cb.RID))
+                        "R data received with unknown RID=%0d", m_vif.monitor_cb.rid))
                 end
             end
         end
@@ -452,8 +466,7 @@ class axi4_monitor extends uvm_monitor;
         if (m_rd_latency_stats.trans_count > 0) begin
             avg_rd_latency = real'(m_rd_latency_stats.total_latency) /
                              real'(m_rd_latency_stats.trans_count);
-            `uvm_info(get_type_name(), $sformatf(
-                "Read Latency Statistics:", UVM_NONE), UVM_NONE)
+            `uvm_info(get_type_name(), "Read Latency Statistics:", UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
                 "  Total Read Transactions: %0d", m_rd_latency_stats.trans_count), UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
@@ -470,8 +483,7 @@ class axi4_monitor extends uvm_monitor;
         if (m_wr_latency_stats.trans_count > 0) begin
             avg_wr_latency = real'(m_wr_latency_stats.total_latency) /
                              real'(m_wr_latency_stats.trans_count);
-            `uvm_info(get_type_name(), $sformatf(
-                "Write Latency Statistics:", UVM_NONE), UVM_NONE)
+            `uvm_info(get_type_name(), "Write Latency Statistics:", UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
                 "  Total Write Transactions: %0d", m_wr_latency_stats.trans_count), UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
@@ -496,8 +508,7 @@ class axi4_monitor extends uvm_monitor;
             // Efficiency
             efficiency = (bandwidth_mbps / m_bw_stats.bandwidth_mbps) * 100.0;
 
-            `uvm_info(get_type_name(), $sformatf(
-                "Bandwidth Statistics:", UVM_NONE), UVM_NONE)
+            `uvm_info(get_type_name(), "Bandwidth Statistics:", UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
                 "  Total Bytes Transferred: %0d", m_bw_stats.total_bytes), UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(

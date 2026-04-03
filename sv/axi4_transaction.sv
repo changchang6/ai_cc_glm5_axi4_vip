@@ -88,6 +88,15 @@ class axi4_transaction extends uvm_sequence_item;
         m_id < (1 << m_id_width);
     }
 
+    // Constraint to disable cache, lock, prot signals for current test scenarios
+    constraint c_disable_cache_lock_prot {
+        m_lock  == 1'b0;
+        m_cache == 4'b0000;
+        m_prot.privilege == 1'b0;
+        m_prot.secure    == 1'b0;
+        m_prot.data      == 1'b0;
+    }
+
     // Function to calculate WSTRB for unaligned first beat
     function bit [31:0] calc_unaligned_wstrb(bit [31:0] addr, int size, int data_width);
         int offset;

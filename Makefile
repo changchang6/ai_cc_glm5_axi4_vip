@@ -17,7 +17,7 @@ PKG_FILES = sv/axi4_types.sv \
 
 IF_FILES = sv/axi4_interface.sv
 
-TB_FILES = tb/axi4_test.sv \
+TB_FILES = sv/axi4_test.sv \
            tb/axi4_tb_top.sv
 
 # UVM home (adjust as needed)
@@ -27,11 +27,18 @@ UVM_HOME ?= $(VCS_HOME)/etc/uvm-1.2
 OUT_DIR ?= work
 
 # Test selection
-TEST ?= axi4_base_test
+TEST ?= axi4_smoke_test
 
 # Simulation options
 GUI ?= 0
 COVERAGE ?= 0
+DUMP_WAVE ?= 1
+GUI_FLAGS =
+
+ifeq ($(GUI),1)
+GUI_FLAGS = -gui=verdi 
+endif
+ 
 
 .PHONY: all clean compile sim vcs questa xrun
 
@@ -39,7 +46,8 @@ all: compile
 
 # VCS compilation and simulation
 vcs: compile_vcs
-	./simv +UVM_TESTNAME=$(TEST) +UVM_VERBOSITY=UVM_MEDIUM
+	./simv_$(TEST) +UVM_TESTNAME=$(TEST) +UVM_VERBOSITY=UVM_MEDIUM \
+		-l sim_$(TEST).log +FSDB_FILE=$(TEST)
 
 compile_vcs:
 	mkdir -p $(OUT_DIR)
@@ -53,12 +61,15 @@ compile_vcs:
 		$(IF_FILES) \
 		sv/axi4_pkg.sv \
 		$(TB_FILES) \
-		-o simv \
-		-l compile.log
+		-o simv_$(TEST) \
+		-l compile_$(TEST).log \
+		-debug_access+all -kdb \
+		+define+DUMP_WAVE
 
 # Questa Sim compilation and simulation
 questa: compile_questa
-	vsim -c -do "run -all; quit" work.axi4_tb_top +UVM_TESTNAME=$(TEST)
+	vsim -c -do "run -all; quit" work.axi4_tb_top +UVM_TESTNAME=$(TEST) \
+		-l sim_$(TEST).log
 
 compile_questa:
 	mkdir -p $(OUT_DIR)
@@ -69,7 +80,7 @@ compile_questa:
 		$(IF_FILES) \
 		sv/axi4_pkg.sv \
 		$(TB_FILES) \
-		-l compile.log
+		-l compile_$(TEST).log
 
 # Xcelium compilation and simulation
 xrun: compile_xrun
@@ -83,7 +94,8 @@ compile_xrun:
 		sv/axi4_pkg.sv \
 		$(TB_FILES) \
 		+UVM_TESTNAME=$(TEST) \
-		-l xrun.log
+		-l compile_$(TEST).log \
+		-access +rwc
 
 # Generic compile target
 compile:
@@ -100,9 +112,11 @@ endif
 # Run simulation
 sim:
 ifeq ($(SIMULATOR),vcs)
-	./simv +UVM_TESTNAME=$(TEST) +UVM_VERBOSITY=UVM_MEDIUM
+	./simv_$(TEST) +UVM_TESTNAME=$(TEST) +UVM_VERBOSITY=UVM_MEDIUM \
+		-l sim_$(TEST).log $(GUI_FLAGS)
 else ifeq ($(SIMULATOR),questa)
-	vsim -c -do "run -all; quit" work.axi4_tb_top +UVM_TESTNAME=$(TEST)
+	vsim -c -do "run -all; quit" work.axi4_tb_top +UVM_TESTNAME=$(TEST) \
+		-l sim_$(TEST).log
 else ifeq ($(SIMULATOR),xrun)
 	$(MAKE) compile_xrun
 endif
@@ -142,8 +156,8 @@ test_bandwidth:
 clean:
 	rm -rf $(OUT_DIR)
 	rm -rf simv* csrc DVEfiles
-	rm -rf work
-	rm -f *.log *.key *.vpd
+	rm -rf work vc_hdrs.h verdiLog
+	rm -f *.log *.key *.vpd *.fsdb*
 	rm -rf INCA_libs irun.key irun.log xrun.log
 
 # Help
@@ -178,3 +192,4 @@ help:
 	@echo "  TEST=<test_name>           - Select test to run (default: axi4_base_test)"
 	@echo "  GUI=1                      - Enable GUI mode"
 	@echo "  COVERAGE=1                 - Enable coverage"
+	@echo "  DUMP_WAVE=1                - Enable waveform dump (default: 1)"

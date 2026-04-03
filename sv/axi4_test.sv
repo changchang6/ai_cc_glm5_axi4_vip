@@ -27,11 +27,35 @@ class axi4_base_test extends uvm_test;
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
 
-        // Get configuration from config_db
-        if (!uvm_config_db#(axi4_config)::get(this, "", "m_cfg", m_cfg)) begin
-            `uvm_warning(get_type_name(), "Configuration not found, creating default")
-            m_cfg = axi4_config::type_id::create("m_cfg");
+        // Create and configure configuration object
+        m_cfg = axi4_config::type_id::create("m_cfg");
+
+        // Default configuration - can be overridden in derived tests
+        m_cfg.m_data_width = 32;
+        m_cfg.m_addr_width = 32;
+        m_cfg.m_id_width = 4;
+        m_cfg.m_max_outstanding = 8;
+        m_cfg.m_trans_interval = 0;
+        m_cfg.m_support_data_before_addr = 0;
+        m_cfg.m_wtimeout = 1000;
+        m_cfg.m_rtimeout = 1000;
+        m_cfg.m_clock_freq_mhz = 100.0;
+        m_cfg.m_is_active = 1;
+        m_cfg.m_has_coverage = 1;
+        m_cfg.m_enable_burst_split = 1;
+
+        // Get virtual interface from config_db
+        if (!uvm_config_db#(virtual axi4_interface #(32, 32, 4))::get(
+            this, "", "m_vif", m_cfg.m_vif)) begin
+            `uvm_error(get_type_name(), "Virtual interface not found in config_db")
         end
+
+        // Set configuration for env and its children
+        uvm_config_db#(axi4_config)::set(this, "m_env", "m_cfg", m_cfg);
+        uvm_config_db#(axi4_config)::set(this, "m_env.m_master_agent", "m_cfg", m_cfg);
+        uvm_config_db#(axi4_config)::set(this, "m_env.m_master_agent.m_driver", "m_cfg", m_cfg);
+        uvm_config_db#(axi4_config)::set(this, "m_env.m_master_agent.m_monitor", "m_cfg", m_cfg);
+        uvm_config_db#(axi4_config)::set(this, "m_env.m_master_agent.m_sequencer", "m_cfg", m_cfg);
 
         // Create environment
         m_env = axi4_env::type_id::create("m_env", this);
