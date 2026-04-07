@@ -181,6 +181,22 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
                     foreach (split_trans[i]) begin
                         drive_single_transaction(split_trans[i]);
                     end
+
+                    // For READ transactions, merge read data back to original transaction
+                    if (trans.m_trans_type == READ) begin
+                        int total_beats;
+                        int beat_idx;
+                        total_beats = trans.m_len + 1;
+                        trans.m_wdata = new[total_beats];
+                        beat_idx = 0;
+
+                        foreach (split_trans[i]) begin
+                            foreach (split_trans[i].m_wdata[j]) begin
+                                trans.m_wdata[beat_idx] = split_trans[i].m_wdata[j];
+                                beat_idx++;
+                            end
+                        end
+                    end
                 end else begin
                     drive_single_transaction(trans);
                 end

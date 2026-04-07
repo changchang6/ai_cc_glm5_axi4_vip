@@ -384,7 +384,7 @@ savePropDtl = TRUE
 saveSigDlg = 1009,522,551,386
 QwWarnMsgDlg = 1000,707,600,250
 restoreSigDlg = 820,416,929,597
-QwUserAskDlg = 440,1230,324,134
+QwUserAskDlg = 445,1230,324,134
 [Relationship]
 hideRecursiceNode = FALSE
 [Session Cache]
@@ -460,10 +460,10 @@ bSVTBMode = TRUE
 SimMode = TRUE
 interactiveDebugging = TRUE
 KeepBreakPoints = FALSE
-vcs_svPath = ./simv_axi4_burst_random_test
+vcs_svPath = ./simv_axi4_burst_slice_test
 uvmAware = TRUE
 smartlog = TRUE
-vcs_svOption = +UVM_TESTNAME=axi4_burst_random_test +UVM_VERBOSITY=UVM_MEDIUM -l sim_axi4_burst_random_test.log  -sml=verdi
+vcs_svOption = +UVM_TESTNAME=axi4_burst_slice_test +UVM_VERBOSITY=UVM_MEDIUM -l sim_axi4_burst_slice_test.log  -sml=verdi
 [SimulationPlus2]
 eventDumpUnfinish = FALSE
 dumpPowerRoot = FALSE
@@ -673,28 +673,28 @@ parRuleSets = "/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/verdi_20
 s/PredefinedParRules/par_rule_UVM.rc /home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/verdi_201809/verdi/Verdi_O-2018.09-SP2/share/VIA/Apps/PredefinedParRules/par_rule_LP.rc /home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/verdi_201809/verd\
 i/Verdi_O-2018.09-SP2/share/VIA/Apps/PredefinedParRules/par_rule_VCS.rc "
 [VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column0]
-name = Code
-width = 60
-visualIndex = 2
-isHidden = FALSE
-isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column1]
-name = Type
-width = 60
-visualIndex = 3
-isHidden = TRUE
-isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column2]
 name = Time
 width = 60
 visualIndex = 0
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column3]
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column1]
 name = Message
 width = 2000
 visualIndex = 4
 isHidden = FALSE
+isUserChangeColumnVisible = FALSE
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column2]
+name = Code
+width = 60
+visualIndex = 2
+isHidden = FALSE
+isUserChangeColumnVisible = FALSE
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column3]
+name = Type
+width = 60
+visualIndex = 3
+isHidden = TRUE
 isUserChangeColumnVisible = FALSE
 [VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column4]
 name = Severity
@@ -721,21 +721,21 @@ visualIndex = 0
 isHidden = TRUE
 isUserChangeColumnVisible = FALSE
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column2]
+name = Severity
+width = 60
+visualIndex = 1
+isHidden = TRUE
+isUserChangeColumnVisible = FALSE
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column3]
 name = Code
 width = 60
 visualIndex = 2
 isHidden = TRUE
 isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column3]
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column4]
 name = Type
 width = 60
 visualIndex = 3
-isHidden = TRUE
-isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column4]
-name = Severity
-width = 60
-visualIndex = 1
 isHidden = TRUE
 isUserChangeColumnVisible = FALSE
 [VIA.parRule]
