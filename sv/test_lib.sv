@@ -285,4 +285,70 @@ class axi4_burst_wrap_test extends axi4_base_test;
 
 endclass : axi4_burst_wrap_test
 
+// Burst Random Test
+// Test to verify random burst functionality with random burst length and type
+// Parameters:
+//   - LEN: random inside [0:15] beats per transaction (1-16 beats)
+//   - SIZE: max_width (4 bytes for 32-bit data)
+//   - BURST: random (INCR, FIXED, WRAP)
+//   - Start address: aligned to 4 bytes
+//   - Number of transactions: 500
+class axi4_burst_random_test extends axi4_base_test;
+    `uvm_component_utils(axi4_burst_random_test)
+
+    // Test parameters
+    int m_num_trans = 5000;
+
+    // Constructor
+    function new(string name = "axi4_burst_random_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    // Run phase
+    task run_phase(uvm_phase phase);
+        axi4_burst_random_sequence seq;
+
+        phase.raise_objection(this);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       AXI4 BURST RANDOM TEST", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: random [1:16] beats", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: 4 bytes (SIZE=2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: random (INCR/FIXED/WRAP)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Start Address: 0x1000_0000 (aligned)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Number of Transactions: 500", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // Create and configure the sequence
+        seq = axi4_burst_random_sequence::type_id::create("seq");
+
+        // Set test parameters:
+        // - LEN: random [0:15] (1-16 beats) - randomized per transaction in sequence
+        // - SIZE: 2 (4 bytes per beat)
+        // - BURST: random (INCR/FIXED/WRAP) - randomized per transaction in sequence
+        // - Start address aligned to 4 bytes (0x1000_0000)
+        // - Number of transactions: 500
+        if (!seq.randomize() with {
+            m_size       == 2;            // 4 bytes per beat
+            m_start_addr == 32'h1000_0000; // Aligned start address
+            m_num_trans  == local::m_num_trans; // 500 transactions
+        }) begin
+            `uvm_error(get_type_name(), "Sequence randomization failed")
+        end
+
+        // Start the sequence on the master sequencer
+        seq.start(m_env.m_master_agent.m_sequencer);
+
+        // Wait for all transactions to complete
+        #1000;
+
+        `uvm_info(get_type_name(), "Burst RANDOM test sequence completed", UVM_MEDIUM)
+
+        phase.drop_objection(this);
+    endtask
+
+endclass : axi4_burst_random_test
+
 `endif // AXI4_TEST_LIB_SV
