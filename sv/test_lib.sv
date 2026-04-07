@@ -418,4 +418,71 @@ class axi4_burst_slice_test extends axi4_base_test;
 
 endclass : axi4_burst_slice_test
 
+// Unaligned Address Test
+// Test to verify unaligned address transfers with random burst lengths
+// Parameters:
+//   - LEN: random inside [0:255] (1-256 beats)
+//   - SIZE: max_width (4 bytes for 32-bit data)
+//   - BURST: INCR
+//   - Start address: unaligned (address[1:0] != 2'b00)
+//   - Number of rounds: 5
+//   - Transactions per round: 100
+//   - Total transactions: 500
+class axi4_unaligned_addr_test extends axi4_base_test;
+    `uvm_component_utils(axi4_unaligned_addr_test)
+
+    // Constructor
+    function new(string name = "axi4_unaligned_addr_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    // Run phase
+    task run_phase(uvm_phase phase);
+        axi4_unaligned_addr_sequence seq;
+
+        phase.raise_objection(this);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       AXI4 UNALIGNED ADDRESS TEST", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: random [1:256] beats", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: 4 bytes (SIZE=2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Start Address: unaligned (random per round)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Number of Rounds: 5", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transactions per Round: 100", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Total Transactions: 500", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // Create and configure the sequence
+        seq = axi4_unaligned_addr_sequence::type_id::create("seq");
+
+        // Set test parameters:
+        // - LEN: random [0:255] (1-256 beats) - randomized per transaction in sequence
+        // - SIZE: 2 (4 bytes per beat)
+        // - BURST: INCR
+        // - 5 rounds, 100 transactions per round = 500 total
+        if (!seq.randomize() with {
+            m_size                == 2;            // 4 bytes per beat
+            m_num_rounds          == 10;            // 5 rounds
+            m_num_trans_per_round == 100;          // 100 transactions per round
+            m_burst               == INCR;         // INCR burst type
+        }) begin
+            `uvm_error(get_type_name(), "Sequence randomization failed")
+        end
+
+        // Start the sequence on the master sequencer
+        seq.start(m_env.m_master_agent.m_sequencer);
+
+        // Wait for all transactions to complete
+        #1000;
+
+        `uvm_info(get_type_name(), "Unaligned address test sequence completed", UVM_MEDIUM)
+
+        phase.drop_objection(this);
+    endtask
+
+endclass : axi4_unaligned_addr_test
+
 `endif // AXI4_TEST_LIB_SV

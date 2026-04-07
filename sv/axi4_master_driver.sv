@@ -217,9 +217,13 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
     endfunction
 
     // Split burst into multiple sub-bursts
+    // For unaligned transfers, only the first sub-burst has unaligned start address
+    // Subsequent sub-bursts have aligned start addresses
     task split_burst(axi4_transaction trans, ref axi4_transaction split_q[$]);
         int remaining_beats;
         int current_addr;
+        int aligned_start;       // Aligned start address for beat calculation
+        int beat_count_sent;     // Number of beats already sent
         int beat_size;
         int beats_this_burst;
         int max_beats_per_burst;
@@ -231,6 +235,9 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
         split_q.delete();
         remaining_beats = trans.m_len + 1;
         current_addr = trans.m_addr;
+        // Calculate aligned start address for beat address calculation
+        aligned_start = (trans.m_addr >> trans.m_size) << trans.m_size;
+        beat_count_sent = 0;
         beat_size = 1 << trans.m_size;
         max_beats_per_burst = m_cfg.m_max_burst_len;
 
@@ -245,11 +252,18 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             m_current_id = (m_current_id + 1) % (1 << m_cfg.m_id_width);
             m_id_sem.put();
 
-            split_trans.m_addr = current_addr;
+            // For first sub-burst, use original unaligned address
+            // For subsequent sub-bursts, use aligned address
+            if (beat_count_sent == 0) begin
+                split_trans.m_addr = current_addr;  // Original unaligned address
+            end else begin
+                // Calculate aligned address for subsequent sub-bursts
+                split_trans.m_addr = aligned_start + beat_count_sent * beat_size;
+            end
 
             // Calculate bytes until 2KB boundary
-            next_2kb_boundary = ((current_addr / 2048) + 1) * 2048;
-            bytes_until_boundary = next_2kb_boundary - current_addr;
+            next_2kb_boundary = ((split_trans.m_addr / 2048) + 1) * 2048;
+            bytes_until_boundary = next_2kb_boundary - split_trans.m_addr;
 
             // Determine beats for this burst
             beats_this_burst = remaining_beats;
@@ -271,13 +285,22 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             // Copy appropriate data for writes
             if (trans.m_trans_type == WRITE) begin
                 int start_idx;
-                start_idx = (current_addr - trans.m_addr) / beat_size;
+                start_idx = beat_count_sent;
                 split_trans.m_wdata = new[beats_this_burst];
                 split_trans.m_wstrb = new[beats_this_burst];
 
                 for (int i = 0; i < beats_this_burst; i++) begin
                     split_trans.m_wdata[i] = trans.m_wdata[start_idx + i];
-                    split_trans.m_wstrb[i] = trans.m_wstrb[start_idx + i];
+                    // For first beat of first sub-burst with unaligned address,
+                    // WSTRB will be calculated in drive_write_addr
+                    // For all other beats, WSTRB should be all valid (all 1s)
+                    if (beat_count_sent == 0 && i == 0 && trans.is_unaligned()) begin
+                        // Keep original WSTRB, will be recalculated in drive_write_addr
+                        split_trans.m_wstrb[i] = trans.m_wstrb[start_idx + i];
+                    end else begin
+                        // All other beats have aligned addresses, WSTRB all valid
+                        split_trans.m_wstrb[i] = (1 << (trans.m_data_width / 8)) - 1;
+                    end
                 end
             end
 
@@ -285,7 +308,8 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
 
             // Update for next iteration
             remaining_beats -= beats_this_burst;
-            current_addr += beats_this_burst * beat_size;
+            beat_count_sent += beats_this_burst;
+            current_addr = aligned_start + beat_count_sent * beat_size;
         end
     endtask
 
@@ -329,8 +353,10 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             @(posedge m_vif.ACLK);
         end
 
-        // Calculate WSTRB for unaligned first beat
-        if (trans.is_unaligned() && trans.m_wstrb[0] == '1) begin
+        // Calculate WSTRB for unaligned first beat only
+        // Per AXI4 protocol: only the first beat of an unaligned burst has special WSTRB
+        // All subsequent beats (including first beats of split sub-bursts) have aligned addresses
+        if (trans.is_unaligned()) begin
             trans.m_wstrb[0] = trans.calc_unaligned_wstrb(
                 trans.m_addr, trans.m_size, trans.m_data_width);
         end

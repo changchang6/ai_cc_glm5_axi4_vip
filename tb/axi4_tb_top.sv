@@ -136,13 +136,20 @@ module axi4_tb_top;
                         wr_addr = current_aw.addr;
                     end
 
-                    // Write to memory: only write bytes indicated by size
+                    // Write to memory: only write bytes indicated by WSTRB
+                    // For unaligned transfers, WSTRB[i] and wdata[i*8 +: 8] correspond to aligned_addr + i
+                    // e.g., addr=0x1ba08449 (offset=1), WSTRB=4'b1110:
+                    //   - WSTRB[1]=1: wdata[15:8]  -> mem[aligned_addr + 1] = mem[0x1ba08449]
+                    //   - WSTRB[2]=1: wdata[23:16] -> mem[aligned_addr + 2] = mem[0x1ba0844a]
+                    //   - WSTRB[3]=1: wdata[31:24] -> mem[aligned_addr + 3] = mem[0x1ba0844b]
                     begin
                         int bytes_per_beat;
+                        bit [ADDR_WIDTH-1:0] aligned_wr_addr;
                         bytes_per_beat = 1 << current_aw.size;
+                        aligned_wr_addr = (wr_addr >> current_aw.size) << current_aw.size;
                         for (int i = 0; i < bytes_per_beat; i++) begin
                             if (axi4_vif.wstrb[i])
-                                mem[wr_addr + i] = axi4_vif.wdata[i*8 +: 8];
+                                mem[aligned_wr_addr + i] = axi4_vif.wdata[i*8 +: 8];
                         end
                     end
 
@@ -217,11 +224,18 @@ module axi4_tb_top;
                 s_rlast     <= (axi4_vif.arlen == 0);
 
                 // Read first beat from memory
+                // For unaligned transfers, data position on bus is based on aligned address
+                // e.g., addr=0x1ba08449 (offset=1):
+                //   - rdata[15:8]  = mem[aligned_addr + 1] = mem[0x1ba08449]
+                //   - rdata[23:16] = mem[aligned_addr + 2] = mem[0x1ba0844a]
+                //   - rdata[31:24] = mem[aligned_addr + 3] = mem[0x1ba0844b]
                 begin
                     int bytes_per_beat;
+                    bit [ADDR_WIDTH-1:0] aligned_rd_addr;
                     bytes_per_beat = 1 << axi4_vif.arsize;
+                    aligned_rd_addr = (first_addr >> axi4_vif.arsize) << axi4_vif.arsize;
                     for (int i = 0; i < bytes_per_beat; i++)
-                        s_rdata[i*8 +: 8] <= mem.exists(first_addr + i) ? mem[first_addr + i] : 8'h00;
+                        s_rdata[i*8 +: 8] <= mem.exists(aligned_rd_addr + i) ? mem[aligned_rd_addr + i] : 8'h00;
                     for (int i = bytes_per_beat; i < DATA_WIDTH/8; i++)
                         s_rdata[i*8 +: 8] <= 8'h00;
                 end
@@ -250,11 +264,14 @@ module axi4_tb_top;
                     rd_addr <= next_addr;
 
                     // Read next beat from memory
+                    // For aligned beats (beat_cnt > 0), next_addr is already aligned
                     begin
                         int bytes_per_beat;
+                        bit [ADDR_WIDTH-1:0] aligned_next_addr;
                         bytes_per_beat = 1 << rd_size;
+                        aligned_next_addr = (next_addr >> rd_size) << rd_size;
                         for (int i = 0; i < bytes_per_beat; i++)
-                            s_rdata[i*8 +: 8] <= mem.exists(next_addr + i) ? mem[next_addr + i] : 8'h00;
+                            s_rdata[i*8 +: 8] <= mem.exists(aligned_next_addr + i) ? mem[aligned_next_addr + i] : 8'h00;
                         for (int i = bytes_per_beat; i < DATA_WIDTH/8; i++)
                             s_rdata[i*8 +: 8] <= 8'h00;
                     end

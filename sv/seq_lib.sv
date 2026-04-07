@@ -1652,4 +1652,430 @@ class axi4_burst_slice_sequence extends axi4_base_sequence;
 
 endclass : axi4_burst_slice_sequence
 
+// Unaligned Address Test Sequence
+// Tests unaligned address transfers with random burst lengths
+// Parameters:
+//   - LEN: random inside [0:255] (1-256 beats)
+//   - SIZE: max_width (2 for 32-bit data width, 4 bytes per beat)
+//   - BURST: INCR
+//   - Start address: unaligned (address[1:0] != 2'b00)
+//   - Number of rounds: 5
+//   - Transactions per round: 100
+//   - Total transactions: 500
+class axi4_unaligned_addr_sequence extends axi4_base_sequence;
+    `uvm_object_utils(axi4_unaligned_addr_sequence)
+
+    // Transaction parameters
+    rand bit [31:0] m_start_addr;    // Starting address (unaligned)
+    rand int        m_num_rounds;    // Number of rounds (default 5)
+    rand int        m_num_trans_per_round;  // Transactions per round (default 100)
+    rand bit [2:0]  m_size;          // Burst size encoding (fixed to 2)
+    rand axi4_burst_t m_burst;       // Burst type (fixed to INCR)
+
+    // Write data storage for read-back verification
+    // Map: byte address -> write data
+    protected bit [7:0] m_byte_data_map[bit [31:0]];
+
+    // Constraints
+    constraint c_num_rounds {
+        m_num_rounds == 10;
+    }
+
+    constraint c_num_trans_per_round {
+        m_num_trans_per_round == 100;
+    }
+
+    constraint c_size {
+        // SIZE = max_width, for 32-bit data width, size = 2 (4 bytes)
+        m_size == 2;
+    }
+
+    constraint c_burst {
+        m_burst == INCR;
+    }
+
+    // Constructor
+    function new(string name = "axi4_unaligned_addr_sequence");
+        super.new(name);
+    endfunction
+
+    // Store write data for later verification (per beat)
+    // For unaligned transfers, data position on bus is shifted by address offset
+    // e.g., addr=0x1ba08449 (offset=1), WSTRB=4'b1110:
+    //   - WSTRB[1]=1: data[15:8]  -> stored to addr 0x1ba08449 (aligned_addr + 1)
+    //   - WSTRB[2]=1: data[23:16] -> stored to addr 0x1ba0844a (aligned_addr + 2)
+    //   - WSTRB[3]=1: data[31:24] -> stored to addr 0x1ba0844b (aligned_addr + 3)
+    // Key insight: WSTRB[i] and data[i*8 +: 8] correspond to aligned_addr + i
+    function void store_write_data(bit [31:0] addr, bit [255:0] data, bit [31:0] wstrb, int size);
+        int bytes_per_beat;
+        int offset;
+        bit [31:0] aligned_addr;
+        bytes_per_beat = 1 << size;
+        offset = addr % bytes_per_beat;  // Address offset within the beat
+        aligned_addr = (addr >> size) << size;  // Aligned address
+
+        // Store each byte separately based on WSTRB
+        // WSTRB[i] indicates data[i*8 +: 8] is valid for memory address (aligned_addr + i)
+        for (int i = 0; i < bytes_per_beat; i++) begin
+            if (wstrb[i]) begin
+                // data[i*8 +: 8] corresponds to memory address (aligned_addr + i)
+                m_byte_data_map[aligned_addr + i] = data[i*8 +: 8];
+            end
+        end
+    endfunction
+
+    // Get stored write data for a beat address
+    function bit [255:0] get_write_data(bit [31:0] addr, int size);
+        int bytes_per_beat;
+        bytes_per_beat = 1 << size;
+        for (int i = 0; i < bytes_per_beat; i++) begin
+            if (m_byte_data_map.exists(addr + i)) begin
+                get_write_data[i*8 +: 8] = m_byte_data_map[addr + i];
+            end else begin
+                get_write_data[i*8 +: 8] = 8'h00;
+            end
+        end
+    endfunction
+
+    // Check if address has stored write data
+    function bit has_write_data(bit [31:0] addr);
+        return m_byte_data_map.exists(addr);
+    endfunction
+
+    // Calculate WSTRB for unaligned first beat (same as transaction class)
+    function bit [31:0] calc_unaligned_wstrb(bit [31:0] addr, int size, int data_width);
+        int offset;
+        int strb_width;
+        bit [31:0] mask;
+
+        offset = addr % (1 << size);
+        strb_width = data_width / 8;
+        mask = (1 << strb_width) - 1;
+
+        // Create mask that zeros out lower bytes based on offset
+        calc_unaligned_wstrb = mask << offset;
+    endfunction
+
+    // Generate random unaligned address
+    function bit [31:0] gen_unaligned_addr();
+        bit [31:0] addr;
+        // Generate random address with lower 2 bits being non-zero (unaligned to 4 bytes)
+        addr = $urandom_range(32'h1000_0000, 32'h1FFF_FFFC);
+        // Force lower 2 bits to be non-zero (1, 2, or 3)
+        addr[1:0] = $urandom_range(1, 3);
+        return addr;
+    endfunction
+
+    // Body - Write then Read-back with verification
+    task body();
+        axi4_transaction wr_trans, rd_trans;
+        bit [31:0] current_addr;
+        bit [31:0] round_start_addr;
+
+        // Burst info storage for read-back verification
+        typedef struct {
+            bit [31:0] start_addr;
+            bit [7:0]  len;
+            int        beats;
+        } burst_info_t;
+        burst_info_t burst_queue[$];
+
+        int total_trans_count;
+        int pass_count;
+        int fail_count;
+        bit [255:0] expected_data;
+        bit [255:0] actual_data;
+        bit [7:0]   saved_len;
+        int beats_in_burst;
+        int bytes_per_beat;
+        int total_bytes;
+        bit [31:0] burst_start_addr;
+        bit [31:0] aligned_start;
+        bit [31:0] beat_addr;
+        bit [255:0] beat_data;
+        bit [31:0] beat_wstrb;
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "  UNALIGNED ADDRESS TEST SEQUENCE", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: random [1:256] beats (LEN inside [0:255])", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - Transfer Size: %0d bytes (SIZE=2)", 2 ** m_size), UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - Number of Rounds: %0d", m_num_rounds), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - Transactions per Round: %0d", m_num_trans_per_round), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - Total Transactions: %0d", m_num_rounds * m_num_trans_per_round), UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        total_trans_count = 0;
+        bytes_per_beat = 2 ** m_size;
+
+        // ============================================================
+        // Phase 1: Send WRITE transactions (5 rounds)
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Phase 1: Sending WRITE transactions ===", UVM_MEDIUM)
+
+        for (int round = 0; round < m_num_rounds; round++) begin
+            // Generate new random unaligned start address for this round
+            round_start_addr = gen_unaligned_addr();
+            current_addr = round_start_addr;
+
+            `uvm_info(get_type_name(), $sformatf(
+                "--- Round %0d: Start Address = 0x%08h (unaligned) ---",
+                round + 1, round_start_addr), UVM_MEDIUM)
+
+            for (int trans = 0; trans < m_num_trans_per_round; trans++) begin
+                wr_trans = axi4_transaction::type_id::create("wr_trans");
+
+                // Randomize LEN for each transaction (1-256 beats)
+                // Disable aligned address constraint for unaligned transfer
+                wr_trans.c_addr_aligned_soft.constraint_mode(0);
+
+                if (!wr_trans.randomize() with {
+                    m_trans_type == WRITE;
+                    m_addr       == local::current_addr;
+                    m_len        inside {[0:255]};  // 1-4 beats
+                    m_size       == local::m_size;
+                    m_burst      == INCR;
+                }) begin
+                    `uvm_error(get_type_name(), "Write transaction randomization failed")
+                    return;
+                end
+
+                // Save transaction parameters
+                saved_len = wr_trans.m_len;
+                beats_in_burst = saved_len + 1;
+                total_bytes = beats_in_burst * bytes_per_beat;
+                burst_start_addr = wr_trans.m_addr;
+
+                // Calculate aligned start address (same as slave does)
+                aligned_start = (burst_start_addr >> m_size) << m_size;
+
+                // Store write data for each beat in the burst
+                // Need to calculate actual WSTRB for unaligned addresses
+                for (int beat = 0; beat < beats_in_burst; beat++) begin
+                    // Calculate beat address according to AXI INCR burst protocol
+                    // Beat 0: address = AxADDR
+                    // Beat 1+: address = aligned_start + beat_index * beat_size
+                    if (beat == 0) begin
+                        beat_addr = burst_start_addr;
+                    end else begin
+                        beat_addr = aligned_start + beat * bytes_per_beat;
+                    end
+
+                    if (wr_trans.m_wdata.size() > beat) begin
+                        beat_data = wr_trans.m_wdata[beat];
+                        beat_wstrb = wr_trans.m_wstrb[beat];
+
+                        // For first beat with unaligned start address, calculate actual WSTRB
+                        // This matches what the driver will do
+                        if (beat == 0 && (burst_start_addr % bytes_per_beat) != 0) begin
+                            beat_wstrb = calc_unaligned_wstrb(burst_start_addr, m_size, 32);
+                        end
+
+                        store_write_data(beat_addr, beat_data, beat_wstrb, m_size);
+                    end
+                end
+
+                // Store burst info for burst read-back
+                burst_queue.push_back('{start_addr: burst_start_addr, len: saved_len, beats: beats_in_burst});
+
+                start_item(wr_trans);
+                finish_item(wr_trans);
+
+                `uvm_info(get_type_name(), $sformatf(
+                    "Sent WRITE #%0d (Round %0d): ADDR=0x%08h, LEN=%0d beats",
+                    total_trans_count + 1, round + 1, wr_trans.m_addr, beats_in_burst), UVM_HIGH)
+
+                // Update current address for next transaction
+                current_addr += total_bytes;
+                total_trans_count++;
+            end
+        end
+
+        `uvm_info(get_type_name(), $sformatf(
+            "Write phase completed: %0d transactions sent in %0d rounds",
+            total_trans_count, m_num_rounds), UVM_MEDIUM)
+
+        // ============================================================
+        // Phase 2: Read back and verify data using BURST reads
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Phase 2: READ-back and verification ===", UVM_MEDIUM)
+
+        pass_count = 0;
+        fail_count = 0;
+
+        // Read back each burst
+        foreach (burst_queue[i]) begin
+            bit [31:0] rd_start_addr;
+            bit [7:0]  rd_len;
+            int        rd_beats;
+            int        remaining_beats;
+            bit [31:0] current_rd_addr;
+            bit [31:0] rd_aligned_start;
+            int        beats_sent;
+
+            rd_start_addr = burst_queue[i].start_addr;
+            rd_len = burst_queue[i].len;
+            rd_beats = burst_queue[i].beats;
+            remaining_beats = rd_beats;
+            current_rd_addr = rd_start_addr;
+            rd_aligned_start = (rd_start_addr >> m_size) << m_size;
+            beats_sent = 0;
+
+            // Handle potential burst splitting by driver
+            while (remaining_beats > 0) begin
+                bit [31:0] next_2kb_boundary;
+                int bytes_until_boundary;
+                int beats_this_burst;
+                int actual_beats_received;
+                int max_burst_len;
+
+                max_burst_len = 32;
+
+                // Calculate bytes until 2KB boundary
+                next_2kb_boundary = ((current_rd_addr / 2048) + 1) * 2048;
+                bytes_until_boundary = next_2kb_boundary - current_rd_addr;
+
+                // Calculate beats for this sub-burst
+                beats_this_burst = remaining_beats;
+
+                // Limit by max burst length
+                if (beats_this_burst > max_burst_len) begin
+                    beats_this_burst = max_burst_len;
+                end
+
+                // Limit by 2KB boundary
+                if (bytes_until_boundary < beats_this_burst * bytes_per_beat) begin
+                    beats_this_burst = bytes_until_boundary / bytes_per_beat;
+                    if (beats_this_burst == 0) beats_this_burst = 1;
+                end
+
+                rd_trans = axi4_transaction::type_id::create("rd_trans");
+
+                // Disable aligned address constraint for unaligned read
+                rd_trans.c_addr_aligned_soft.constraint_mode(0);
+
+                if (!rd_trans.randomize() with {
+                    m_trans_type == READ;
+                    m_addr       == local::current_rd_addr;
+                    m_len        == local::beats_this_burst - 1;
+                    m_size       == local::m_size;
+                    m_burst      == INCR;
+                }) begin
+                    `uvm_error(get_type_name(), "Read transaction randomization failed")
+                    return;
+                end
+
+                start_item(rd_trans);
+                finish_item(rd_trans);
+
+                actual_beats_received = rd_trans.m_wdata.size();
+
+                // Verify each beat in the read burst
+                for (int beat = 0; beat < actual_beats_received; beat++) begin
+                    bit [31:0] beat_addr;
+                    bit [255:0] expected_beat_data;
+                    bit [255:0] actual_beat_data;
+                    bit beat_pass;
+                    int global_beat_idx;
+
+                    // Calculate global beat index in the original burst
+                    global_beat_idx = beats_sent + beat;
+
+                    // Calculate beat address according to AXI INCR burst protocol
+                    // Beat 0: address = AxADDR
+                    // Beat 1+: address = aligned_start + beat_index * beat_size
+                    if (global_beat_idx == 0) begin
+                        beat_addr = rd_start_addr;
+                    end else begin
+                        beat_addr = rd_aligned_start + global_beat_idx * bytes_per_beat;
+                    end
+
+                    if (rd_trans.m_wdata.size() > beat) begin
+                        int beat_offset;
+                        bit [31:0] beat_aligned_addr;
+                        actual_beat_data = rd_trans.m_wdata[beat];
+                        beat_pass = 1;
+
+                        // Calculate address offset for unaligned first beat
+                        beat_offset = beat_addr % bytes_per_beat;
+                        beat_aligned_addr = (beat_addr >> m_size) << m_size;
+
+                        // Compare each byte individually
+                        // For unaligned transfers, data position on bus is shifted:
+                        // e.g., addr=0x1ba08449 (offset=1):
+                        //   - data[15:8]  corresponds to addr 0x1ba08449 (aligned_addr + 1)
+                        //   - data[23:16] corresponds to addr 0x1ba0844a (aligned_addr + 2)
+                        //   - data[31:24] corresponds to addr 0x1ba0844b (aligned_addr + 3)
+                        for (int byte_idx = 0; byte_idx < bytes_per_beat; byte_idx++) begin
+                            bit [7:0] expected_byte;
+                            bit [7:0] actual_byte;
+                            bit [31:0] byte_addr;
+                            int data_pos;
+
+                            // Calculate memory address for this byte position on bus
+                            byte_addr = beat_aligned_addr + byte_idx;
+
+                            // Get expected byte from our byte-level storage
+                            if (m_byte_data_map.exists(byte_addr)) begin
+                                expected_byte = m_byte_data_map[byte_addr];
+                                // Data position on bus equals byte index (data[i*8 +: 8] for aligned_addr + i)
+                                actual_byte = actual_beat_data[byte_idx*8 +: 8];
+
+                                if (expected_byte != actual_byte) begin
+                                    beat_pass = 0;
+                                    `uvm_error(get_type_name(), $sformatf(
+                                        "READ FAIL: ADDR=0x%08h, Byte[%0d] Expected=0x%02h, Actual=0x%02h",
+                                        byte_addr, byte_idx, expected_byte, actual_byte))
+                                end
+                            end
+                            // If byte not in map (not written), skip verification for this byte
+                        end
+
+                        if (beat_pass) begin
+                            pass_count++;
+                            `uvm_info(get_type_name(), $sformatf(
+                                "READ PASS: ADDR=0x%08h, DATA=0x%08h",
+                                beat_addr, actual_beat_data[31:0]), UVM_HIGH)
+                        end else begin
+                            fail_count++;
+                        end
+                    end
+                end
+
+                // Update for next sub-burst
+                // The next read address should be calculated based on the global beat index
+                beats_sent += actual_beats_received;
+                remaining_beats -= actual_beats_received;
+
+                // Calculate next read start address
+                if (remaining_beats > 0) begin
+                    // Next address = aligned_start + beats_sent * bytes_per_beat
+                    current_rd_addr = rd_aligned_start + beats_sent * bytes_per_beat;
+                end
+            end
+        end
+
+        // ============================================================
+        // Summary - Verification results
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Verification Summary ===", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Total transactions: %0d WRITE, %0d READ",
+            total_trans_count, burst_queue.size()), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Verification results: PASS=%0d, FAIL=%0d",
+            pass_count, fail_count), UVM_NONE)
+
+        if (fail_count == 0 && pass_count > 0) begin
+            `uvm_info(get_type_name(), "*** ALL VERIFICATIONS PASSED ***", UVM_NONE)
+        end else if (fail_count > 0) begin
+            `uvm_error(get_type_name(), $sformatf("*** %0d VERIFICATIONS FAILED ***", fail_count))
+        end
+
+    endtask
+
+endclass : axi4_unaligned_addr_sequence
+
 `endif // AXI4_SEQ_LIB_SV
