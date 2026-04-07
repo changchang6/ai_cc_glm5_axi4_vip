@@ -172,6 +172,7 @@ module axi4_tb_top;
     logic [1:0]            s_rresp;
     logic                  s_rlast;
     logic [ADDR_WIDTH-1:0] rd_addr;
+    logic [ADDR_WIDTH-1:0] rd_start_addr;      // Start address for wrap calculation
     logic [ADDR_WIDTH-1:0] rd_aligned_start;
     logic [7:0]            rd_len;
     logic [2:0]            rd_size;
@@ -192,6 +193,7 @@ module axi4_tb_top;
             s_rresp     <= 2'b00;
             s_rlast     <= 0;
             rd_addr         <= '0;
+            rd_start_addr   <= '0;
             rd_aligned_start <= '0;
             rd_len      <= '0;
             rd_size     <= '0;
@@ -203,6 +205,7 @@ module axi4_tb_top;
                 logic [ADDR_WIDTH-1:0] first_addr;
                 first_addr       = axi4_vif.araddr;
                 rd_addr          <= first_addr;
+                rd_start_addr    <= first_addr;  // Save start address for wrap calculation
                 rd_aligned_start <= (first_addr >> axi4_vif.arsize) << axi4_vif.arsize;
                 rd_len      <= axi4_vif.arlen;
                 rd_size     <= axi4_vif.arsize;
@@ -239,8 +242,8 @@ module axi4_tb_top;
                         logic [ADDR_WIDTH-1:0] wrap_boundary;
                         int wrap_size;
                         wrap_size = (rd_len + 1) * (1 << rd_size);
-                        wrap_boundary = (rd_addr / wrap_size) * wrap_size;
-                        next_addr = wrap_boundary + ((rd_addr - wrap_boundary + (1 << rd_size)) % wrap_size);
+                        wrap_boundary = (rd_start_addr / wrap_size) * wrap_size;  // Use start address
+                        next_addr = wrap_boundary + ((rd_start_addr - wrap_boundary + (rd_beat_cnt + 1) * (1 << rd_size)) % wrap_size);
                     end else begin  // FIXED
                         next_addr = rd_addr;
                     end
