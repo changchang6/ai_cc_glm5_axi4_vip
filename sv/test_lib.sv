@@ -547,4 +547,57 @@ class axi4_narrow_test extends axi4_base_test;
 
 endclass : axi4_narrow_test
 
+// Parameterized Configuration 1 Test
+// Tests VIP with parameterized configuration:
+//   DATA_WIDTH = 64
+//   ADDR_WIDTH = 48
+//   ID_WIDTH   = 5
+// Sends 500 write transactions followed by read-back verification
+class axi4_para_cfg1_test extends axi4_base_test;
+    `uvm_component_utils(axi4_para_cfg1_test)
+
+    // Constructor
+    function new(string name = "axi4_para_cfg1_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    // Run phase
+    task run_phase(uvm_phase phase);
+        axi4_para_cfg1_sequence seq;
+
+        phase.raise_objection(this);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "   AXI4 PARAMETERIZED CONFIG 1 TEST", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - DATA_WIDTH: %0d", `AXI4_DATA_WIDTH), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - ADDR_WIDTH: %0d", `AXI4_ADDR_WIDTH), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - ID_WIDTH:   %0d", `AXI4_ID_WIDTH), UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: 1 beat (LEN=0)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Number of Transactions: 500", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // Create and configure the sequence
+        seq = axi4_para_cfg1_sequence::type_id::create("seq");
+
+        // Set test parameters
+        if (!seq.randomize()) begin
+            `uvm_error(get_type_name(), "Sequence randomization failed")
+        end
+
+        // Start the sequence on the master sequencer
+        seq.start(m_env.m_master_agent.m_sequencer);
+
+        // Wait for all transactions to complete
+        #1000;
+
+        `uvm_info(get_type_name(), "Para_cfg1 test sequence completed", UVM_MEDIUM)
+
+        phase.drop_objection(this);
+    endtask
+
+endclass : axi4_para_cfg1_test
+
 `endif // AXI4_TEST_LIB_SV

@@ -4,6 +4,8 @@
 `ifndef AXI4_TYPES_SV
 `define AXI4_TYPES_SV
 
+`include "axi4_params.svh"
+
 // Burst type enumeration
 typedef enum logic [1:0] {
     FIXED = 2'b00,
@@ -54,10 +56,10 @@ typedef logic [3:0] axi4_region_t;
 // User extension (configurable width)
 typedef logic [15:0] axi4_user_t;
 
-// Write address channel struct
+// Write address channel struct (parameterized)
 typedef struct packed {
-    logic [31:0] awaddr;
-    logic [3:0]  awid;
+    logic [`AXI4_ADDR_WIDTH-1:0] awaddr;
+    logic [`AXI4_ID_WIDTH-1:0]   awid;
     logic [7:0]  awlen;
     logic [2:0]  awsize;
     logic [1:0]  awburst;
@@ -77,17 +79,17 @@ typedef struct packed {
     logic [15:0]  wuser;
 } axi4_w_chan_t;
 
-// Write response channel struct
+// Write response channel struct (parameterized)
 typedef struct packed {
-    logic [3:0]  bid;
+    logic [`AXI4_ID_WIDTH-1:0] bid;
     logic [1:0]  bresp;
     logic [15:0] buser;
 } axi4_b_chan_t;
 
-// Read address channel struct
+// Read address channel struct (parameterized)
 typedef struct packed {
-    logic [31:0] araddr;
-    logic [3:0]  arid;
+    logic [`AXI4_ADDR_WIDTH-1:0] araddr;
+    logic [`AXI4_ID_WIDTH-1:0]   arid;
     logic [7:0]  arlen;
     logic [2:0]  arsize;
     logic [1:0]  arburst;
@@ -99,10 +101,10 @@ typedef struct packed {
     logic [15:0] aruser;
 } axi4_ar_chan_t;
 
-// Read data channel struct
+// Read data channel struct (parameterized)
 typedef struct packed {
     logic [255:0] rdata;
-    logic [3:0]  rid;
+    logic [`AXI4_ID_WIDTH-1:0] rid;
     logic [1:0]  rresp;
     logic        rlast;
     logic [15:0] ruser;

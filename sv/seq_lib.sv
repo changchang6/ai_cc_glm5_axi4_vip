@@ -2519,4 +2519,193 @@ class axi4_narrow_sequence extends axi4_base_sequence;
 
 endclass : axi4_narrow_sequence
 
+// Parameterized Configuration 1 Test Sequence
+// Sends 500 write transactions followed by read-back verification
+// Designed for CFG1 configuration (DATA_WIDTH=64, ADDR_WIDTH=48, ID_WIDTH=5)
+class axi4_para_cfg1_sequence extends axi4_base_sequence;
+    `uvm_object_utils(axi4_para_cfg1_sequence)
+
+    // Transaction parameters (non-randomized for deterministic test)
+    bit [`AXI4_ADDR_WIDTH-1:0] m_start_addr;    // Starting address (aligned)
+    int        m_num_trans = 5000;  // Number of transactions
+    bit [7:0]  m_len = 0;          // Burst length - 1 (single beat)
+    bit [2:0]  m_size;            // Burst size encoding (max for data width)
+    axi4_burst_t m_burst = INCR;  // Burst type
+
+    // Write data storage for read-back verification
+    // Map: address -> write data array (for burst transfers)
+    protected bit [255:0] m_write_data_map[bit [`AXI4_ADDR_WIDTH-1:0]];
+
+    // Constructor
+    function new(string name = "axi4_para_cfg1_sequence");
+        super.new(name);
+        // Set size based on data width
+        m_size = (`AXI4_DATA_WIDTH == 64) ? 3 : 2;
+        // Set default start address (aligned to size)
+        m_start_addr = 48'h1000_0000_0000;
+    endfunction
+
+    // Store write data for later verification
+    function void store_write_data(bit [`AXI4_ADDR_WIDTH-1:0] addr, bit [255:0] data);
+        m_write_data_map[addr] = data;
+    endfunction
+
+    // Get stored write data
+    function bit [255:0] get_write_data(bit [`AXI4_ADDR_WIDTH-1:0] addr);
+        if (m_write_data_map.exists(addr)) begin
+            return m_write_data_map[addr];
+        end else begin
+            return {256{1'b0}};
+        end
+    endfunction
+
+    // Body - Write then Read-back with verification
+    task body();
+        axi4_transaction wr_trans, rd_trans;
+        bit [`AXI4_ADDR_WIDTH-1:0] current_addr;
+
+        // Address queue for read-back
+        bit [`AXI4_ADDR_WIDTH-1:0] addr_queue[$];
+
+        int trans_count;
+        int pass_count;
+        int fail_count;
+        bit [255:0] expected_data;
+        bit [255:0] actual_data;
+        int bytes_per_beat;
+        bit [255:0] data_mask;
+
+        bytes_per_beat = 2 ** m_size;
+        data_mask = (256'h1 << (bytes_per_beat * 8)) - 1;
+
+        `uvm_info(get_type_name(), $sformatf(
+            "=== PARA_CFG1 Test Sequence ==="), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Configuration: DATA_WIDTH=%0d, ADDR_WIDTH=%0d, ID_WIDTH=%0d",
+            `AXI4_DATA_WIDTH, `AXI4_ADDR_WIDTH, `AXI4_ID_WIDTH), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Test parameters: %0d transactions, LEN=%0d, SIZE=%0d bytes, ADDR=0x%0h",
+            m_num_trans, m_len + 1, bytes_per_beat, m_start_addr), UVM_NONE)
+
+        // ============================================================
+        // Phase 1: Send 500 WRITE transactions
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Phase 1: Sending WRITE transactions ===", UVM_MEDIUM)
+
+        current_addr = m_start_addr;
+        trans_count = 0;
+
+        repeat (m_num_trans) begin
+            wr_trans = axi4_transaction::type_id::create("wr_trans");
+
+            if (!wr_trans.randomize() with {
+                m_trans_type == WRITE;
+                m_addr       == local::current_addr;
+                m_len        == local::m_len;
+                m_size       == local::m_size;
+                m_burst      == local::m_burst;
+            }) begin
+                `uvm_error(get_type_name(), "Write transaction randomization failed")
+                return;
+            end
+
+            start_item(wr_trans);
+            finish_item(wr_trans);
+
+            // Store write data for verification
+            if (wr_trans.m_wdata.size() > 0) begin
+                store_write_data(current_addr, wr_trans.m_wdata[0]);
+                addr_queue.push_back(current_addr);
+            end
+
+            if (trans_count % 100 == 0 || trans_count == m_num_trans - 1) begin
+                `uvm_info(get_type_name(), $sformatf(
+                    "WRITE progress: %0d/%0d, ADDR=0x%0h",
+                    trans_count + 1, m_num_trans, current_addr), UVM_MEDIUM)
+            end
+
+            current_addr += bytes_per_beat;
+            trans_count++;
+        end
+
+        `uvm_info(get_type_name(), $sformatf(
+            "Write phase completed: %0d transactions sent", m_num_trans), UVM_MEDIUM)
+
+        // ============================================================
+        // Phase 2: Read back and verify all data
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Phase 2: READ-back and verification ===", UVM_MEDIUM)
+
+        pass_count = 0;
+        fail_count = 0;
+
+        foreach (addr_queue[i]) begin
+            rd_trans = axi4_transaction::type_id::create("rd_trans");
+
+            if (!rd_trans.randomize() with {
+                m_trans_type == READ;
+                m_addr       == local::addr_queue[i];
+                m_len        == local::m_len;
+                m_size       == local::m_size;
+                m_burst      == local::m_burst;
+            }) begin
+                `uvm_error(get_type_name(), "Read transaction randomization failed")
+                return;
+            end
+
+            start_item(rd_trans);
+            finish_item(rd_trans);
+
+            // Get expected and actual data
+            expected_data = get_write_data(addr_queue[i]);
+
+            if (rd_trans.m_wdata.size() > 0) begin
+                actual_data = rd_trans.m_wdata[0];
+
+                // Compare data (only compare valid bytes based on data width)
+                if ((actual_data & data_mask) == (expected_data & data_mask)) begin
+                    pass_count++;
+                    if (i % 100 == 0) begin
+                        `uvm_info(get_type_name(), $sformatf(
+                            "READ progress: %0d/%0d, ADDR=0x%0h - PASS",
+                            i + 1, m_num_trans, addr_queue[i]), UVM_MEDIUM)
+                    end
+                end else begin
+                    fail_count++;
+                    `uvm_error(get_type_name(), $sformatf(
+                        "READ FAIL #%0d: ADDR=0x%0h, Expected=0x%0h, Actual=0x%0h",
+                        i + 1, addr_queue[i], expected_data & data_mask, actual_data & data_mask))
+                end
+            end else begin
+                fail_count++;
+                `uvm_error(get_type_name(), $sformatf(
+                    "READ #%0d: ADDR=0x%0h - No data returned",
+                    i + 1, addr_queue[i]))
+            end
+        end
+
+        // ============================================================
+        // Summary
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Verification Summary ===", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Configuration: DATA_WIDTH=%0d, ADDR_WIDTH=%0d, ID_WIDTH=%0d",
+            `AXI4_DATA_WIDTH, `AXI4_ADDR_WIDTH, `AXI4_ID_WIDTH), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Total transactions: %0d WRITE, %0d READ",
+            m_num_trans, m_num_trans), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Verification results: PASS=%0d, FAIL=%0d",
+            pass_count, fail_count), UVM_NONE)
+
+        if (fail_count == 0 && pass_count > 0) begin
+            `uvm_info(get_type_name(), "*** ALL VERIFICATIONS PASSED ***", UVM_NONE)
+        end else if (fail_count > 0) begin
+            `uvm_error(get_type_name(), $sformatf("*** %0d VERIFICATIONS FAILED ***", fail_count))
+        end
+
+    endtask
+
+endclass : axi4_para_cfg1_sequence
+
 `endif // AXI4_SEQ_LIB_SV

@@ -11,8 +11,8 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
     // Configuration handle
     axi4_config m_cfg;
 
-    // Virtual interface
-    virtual axi4_interface m_vif;
+    // Virtual interface (parameterized via macros)
+    virtual axi4_interface #(`AXI4_DATA_WIDTH, `AXI4_ADDR_WIDTH, `AXI4_ID_WIDTH) m_vif;
 
     // Burst split transaction tracking
     local axi4_transaction m_split_trans_q[$];

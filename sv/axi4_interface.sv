@@ -4,13 +4,14 @@
 `ifndef AXI4_INTERFACE_SV
 `define AXI4_INTERFACE_SV
 
+`include "axi4_params.svh"
 import uvm_pkg::*;
 `include "uvm_macros.svh"
 
 interface axi4_interface #(
-    parameter int DATA_WIDTH = 32,
-    parameter int ADDR_WIDTH = 32,
-    parameter int ID_WIDTH = 4
+    parameter int DATA_WIDTH = `AXI4_DATA_WIDTH,
+    parameter int ADDR_WIDTH = `AXI4_ADDR_WIDTH,
+    parameter int ID_WIDTH = `AXI4_ID_WIDTH
 )(
     input logic ACLK,
     input logic ARESETn

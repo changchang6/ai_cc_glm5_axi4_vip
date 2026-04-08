@@ -11,8 +11,8 @@ class axi4_transaction extends uvm_sequence_item;
     rand axi4_trans_t m_trans_type;
 
     // Address channel signals
-    rand bit [31:0] m_addr;
-    rand bit [3:0]  m_id;
+    rand bit [`AXI4_ADDR_WIDTH-1:0] m_addr;
+    rand bit [`AXI4_ID_WIDTH-1:0]   m_id;
     rand bit [7:0]  m_len;      // Burst length - 1 (0-255)
     rand bit [2:0]  m_size;     // Burst size (1, 2, 4, 8, 16, 32, 64, 128 bytes)
     rand axi4_burst_t m_burst;
@@ -30,10 +30,10 @@ class axi4_transaction extends uvm_sequence_item;
     // Response signals
     rand axi4_resp_t m_resp;
 
-    // Configuration parameters (non-randomized)
-    int m_data_width = 32;
-    int m_addr_width = 32;
-    int m_id_width = 4;
+    // Configuration parameters (non-randomized, using macros)
+    int m_data_width = `AXI4_DATA_WIDTH;
+    int m_addr_width = `AXI4_ADDR_WIDTH;
+    int m_id_width = `AXI4_ID_WIDTH;
 
     // Constraints for burst length based on burst type
     constraint c_len_fixed {

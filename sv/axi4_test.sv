@@ -31,9 +31,9 @@ class axi4_base_test extends uvm_test;
         m_cfg = axi4_config::type_id::create("m_cfg");
 
         // Default configuration - can be overridden in derived tests
-        m_cfg.m_data_width = 32;
-        m_cfg.m_addr_width = 32;
-        m_cfg.m_id_width = 4;
+        m_cfg.m_data_width = `AXI4_DATA_WIDTH;
+        m_cfg.m_addr_width = `AXI4_ADDR_WIDTH;
+        m_cfg.m_id_width = `AXI4_ID_WIDTH;
         m_cfg.m_max_outstanding = 8;
         m_cfg.m_trans_interval = 0;
         m_cfg.m_support_data_before_addr = 0;
@@ -44,8 +44,8 @@ class axi4_base_test extends uvm_test;
         m_cfg.m_has_coverage = 1;
         m_cfg.m_enable_burst_split = 1;
 
-        // Get virtual interface from config_db
-        if (!uvm_config_db#(virtual axi4_interface #(32, 32, 4))::get(
+        // Get virtual interface from config_db (parameterized via macros)
+        if (!uvm_config_db#(virtual axi4_interface #(`AXI4_DATA_WIDTH, `AXI4_ADDR_WIDTH, `AXI4_ID_WIDTH))::get(
             this, "", "m_vif", m_cfg.m_vif)) begin
             `uvm_error(get_type_name(), "Virtual interface not found in config_db")
         end

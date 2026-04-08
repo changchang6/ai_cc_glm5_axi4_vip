@@ -74,9 +74,9 @@ class axi4_config extends uvm_object;
     real clk_freq_mhz = 100.0;
 
     // Legacy compatibility parameters (single master)
-    int m_data_width = 32;
-    int m_addr_width = 32;
-    int m_id_width = 4;
+    int m_data_width = `AXI4_DATA_WIDTH;
+    int m_addr_width = `AXI4_ADDR_WIDTH;
+    int m_id_width = `AXI4_ID_WIDTH;
 
     // Timing parameters
     int m_max_outstanding = 8;         // Max pending transactions
@@ -105,8 +105,8 @@ class axi4_config extends uvm_object;
     bit m_enable_burst_split = 1;     // Enable burst splitting
     int m_max_burst_len = 32;         // Max burst length after split
 
-    // Virtual interface (parameterized)
-    virtual axi4_interface #(32, 32, 4) m_vif;
+    // Virtual interface (parameterized via macros)
+    virtual axi4_interface #(`AXI4_DATA_WIDTH, `AXI4_ADDR_WIDTH, `AXI4_ID_WIDTH) m_vif;
 
     // Nested system configuration
     axi4_system_config u_axi_system_cfg;

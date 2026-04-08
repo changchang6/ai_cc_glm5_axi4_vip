@@ -66,7 +66,7 @@ compile_vcs:
 		-o simv_$(TEST) \
 		-l compile_$(TEST).log \
 		-debug_access+all -kdb \
-		+define+DUMP_WAVE
+		+define+DUMP_WAVE $(EXTRA_DEFINES)
 
 # Questa Sim compilation and simulation
 questa: compile_questa
@@ -153,6 +153,13 @@ test_wstrb_mask:
 
 test_bandwidth:
 	$(MAKE) sim TEST=axi4_bandwidth_test
+
+# Parameterized configuration tests
+# Compile with CFG1: DATA_WIDTH=64, ADDR_WIDTH=48, ID_WIDTH=5
+test_para_cfg1:
+	$(MAKE) compile_vcs TEST=axi4_para_cfg1_test EXTRA_DEFINES="+define+CFG_TYPE_CFG1"
+	./simv_axi4_para_cfg1_test +UVM_TESTNAME=axi4_para_cfg1_test +UVM_VERBOSITY=$(UVM_VERB) \
+		-l sim_para_cfg1_test.log +FSDB_FILE=para_cfg1_test +ntb_random_seed=$(SEED) $(GUI_FLAGS)
 
 # Clean up
 clean:

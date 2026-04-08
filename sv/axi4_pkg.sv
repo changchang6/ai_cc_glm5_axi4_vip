@@ -12,6 +12,9 @@ package axi4_pkg;
     import uvm_pkg::*;
     `include "uvm_macros.svh"
 
+    // Parameter definitions (must be included first)
+    `include "axi4_params.svh"
+
     // Type definitions
     `include "axi4_types.sv"
 

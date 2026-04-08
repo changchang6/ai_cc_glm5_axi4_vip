@@ -384,7 +384,7 @@ savePropDtl = TRUE
 saveSigDlg = 1009,522,551,386
 QwWarnMsgDlg = 1025,852,600,250
 restoreSigDlg = 820,416,929,597
-QwUserAskDlg = 590,1230,324,134
+QwUserAskDlg = 610,1230,324,134
 [Relationship]
 hideRecursiceNode = FALSE
 [Session Cache]
@@ -460,10 +460,10 @@ bSVTBMode = TRUE
 SimMode = TRUE
 interactiveDebugging = TRUE
 KeepBreakPoints = FALSE
-vcs_svPath = ./simv_axi4_narrow_test
+vcs_svPath = ./simv_axi4_para_cfg1_test
 uvmAware = TRUE
 smartlog = TRUE
-vcs_svOption = +UVM_TESTNAME=axi4_narrow_test +UVM_VERBOSITY=UVM_MEDIUM -l sim_axi4_narrow_test.log +ntb_random_seed=1  -sml=verdi
+vcs_svOption = +UVM_TESTNAME=axi4_para_cfg1_test +UVM_VERBOSITY=UVM_MEDIUM -l sim_para_cfg1_test.log +FSDB_FILE=para_cfg1_test +ntb_random_seed=1  -sml=verdi
 [SimulationPlus2]
 eventDumpUnfinish = FALSE
 dumpPowerRoot = FALSE
@@ -495,8 +495,8 @@ nLineSize = 1024
 verbose_progress = FALSE
 [TestBenchBrowser]
 hideWatchView = TRUE
-ClassBrowserTypeFilter = 31
 ObjectBrowserMode = 2
+ClassBrowserTypeFilter = 31
 -showUVMDynamicHierTreeWin = FALSE
 DataViewTooltip = TRUE
 [Text]
@@ -675,34 +675,34 @@ parRuleSets = "/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/verdi_20
 s/PredefinedParRules/par_rule_UVM.rc /home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/verdi_201809/verdi/Verdi_O-2018.09-SP2/share/VIA/Apps/PredefinedParRules/par_rule_LP.rc /home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/verdi_201809/verd\
 i/Verdi_O-2018.09-SP2/share/VIA/Apps/PredefinedParRules/par_rule_VCS.rc "
 [VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column0]
-name = Severity
-width = 60
-visualIndex = 1
-isHidden = FALSE
-isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column1]
-name = Time
-width = 60
-visualIndex = 0
-isHidden = FALSE
-isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column2]
-name = Message
-width = 2000
-visualIndex = 4
-isHidden = FALSE
-isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column3]
 name = Code
 width = 60
 visualIndex = 2
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column4]
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column1]
 name = Type
 width = 60
 visualIndex = 3
 isHidden = TRUE
+isUserChangeColumnVisible = FALSE
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column2]
+name = Severity
+width = 60
+visualIndex = 1
+isHidden = FALSE
+isUserChangeColumnVisible = FALSE
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column3]
+name = Time
+width = 60
+visualIndex = 0
+isHidden = FALSE
+isUserChangeColumnVisible = FALSE
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column4]
+name = Message
+width = 2000
+visualIndex = 4
+isHidden = FALSE
 isUserChangeColumnVisible = FALSE
 [VIA.oneSearch.preference]
 DefaultDisplayTimeUnit = "1.000000ns"
@@ -711,28 +711,28 @@ DefaultLogTimeUnit = "1.000000ns"
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0]
 parRuleSets = ""
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column0]
-name = Type
-width = 60
-visualIndex = 3
-isHidden = TRUE
-isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column1]
-name = Message
-width = 2000
-visualIndex = 4
-isHidden = FALSE
-isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column2]
 name = Time
 width = 60
 visualIndex = 0
 isHidden = TRUE
 isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column3]
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column1]
 name = Code
 width = 60
 visualIndex = 2
 isHidden = TRUE
+isUserChangeColumnVisible = FALSE
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column2]
+name = Type
+width = 60
+visualIndex = 3
+isHidden = TRUE
+isUserChangeColumnVisible = FALSE
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column3]
+name = Message
+width = 2000
+visualIndex = 4
+isHidden = FALSE
 isUserChangeColumnVisible = FALSE
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column4]
 name = Severity
@@ -761,7 +761,7 @@ scope_to_save_with_macro
 open_file_dir
 open_rc_file_dir
 getSignalForm = 0 0 800 479 100 30 100 30
-viewPort = 0 27 2560 1188 172 139
+viewPort = 0 27 2560 1188 172 194
 signalSpacing = 5
 digitalSignalHeight = 15
 analogSignalHeight = 98
@@ -1359,7 +1359,7 @@ AddImportArgument = FALSE
 LineBreakWithScope = TRUE
 StopAfterCompileOption = -s
 [wave.0]
-viewPort = 0 27 2560 1188 172 139
+viewPort = 0 27 2560 1188 172 194
 [wave.1]
 viewPort = 127 219 960 332 100 65
 [wave.2]

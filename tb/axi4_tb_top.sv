@@ -1,5 +1,7 @@
 // AXI4 VIP Testbench Top Module
 // Demonstrates how to use the AXI4 VIP
+// Supports parameterized configuration via CFG_TYPE define
+// Compile with +define+CFG_TYPE_CFG1 for cfg1 configuration
 
 `timescale 1ns/1ps
 `include "uvm_macros.svh"
@@ -17,10 +19,10 @@ module axi4_tb_top;
     import axi4_pkg::*;
     import uvm_pkg::*;
 
-    // Parameters
-    parameter int DATA_WIDTH = 32;
-    parameter int ADDR_WIDTH = 32;
-    parameter int ID_WIDTH = 4;
+    // Parameters - using macros from axi4_params.svh
+    parameter int DATA_WIDTH = `AXI4_DATA_WIDTH;
+    parameter int ADDR_WIDTH = `AXI4_ADDR_WIDTH;
+    parameter int ID_WIDTH   = `AXI4_ID_WIDTH;
 
     // Clock and reset
     logic ACLK;
@@ -293,8 +295,8 @@ module axi4_tb_top;
 
     // UVM initial block
     initial begin
-        // Pass virtual interface to test
-        uvm_config_db#(virtual axi4_interface #(DATA_WIDTH, ADDR_WIDTH, ID_WIDTH))::set(
+        // Pass virtual interface to test (parameterized via macros)
+        uvm_config_db#(virtual axi4_interface #(`AXI4_DATA_WIDTH, `AXI4_ADDR_WIDTH, `AXI4_ID_WIDTH))::set(
             null, "uvm_test_top", "m_vif", axi4_vif);
 
         // Run burst_incr_test by default
