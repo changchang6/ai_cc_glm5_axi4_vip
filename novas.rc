@@ -382,9 +382,9 @@ savePropStat = FALSE
 savePropDtl = TRUE
 [QtDialog]
 saveSigDlg = 1009,522,551,386
+QwWarnMsgDlg = 1025,852,600,250
 restoreSigDlg = 820,416,929,597
-QwWarnMsgDlg = 1010,765,600,250
-QwUserAskDlg = 515,1230,324,134
+QwUserAskDlg = 590,1230,324,134
 [Relationship]
 hideRecursiceNode = FALSE
 [Session Cache]
@@ -460,10 +460,10 @@ bSVTBMode = TRUE
 SimMode = TRUE
 interactiveDebugging = TRUE
 KeepBreakPoints = FALSE
-vcs_svPath = ./simv_axi4_unaligned_addr_test
+vcs_svPath = ./simv_axi4_narrow_test
 uvmAware = TRUE
 smartlog = TRUE
-vcs_svOption = +UVM_TESTNAME=axi4_unaligned_addr_test +UVM_VERBOSITY=UVM_MEDIUM -l sim_axi4_unaligned_addr_test.log +ntb_random_seed=1  -sml=verdi
+vcs_svOption = +UVM_TESTNAME=axi4_narrow_test +UVM_VERBOSITY=UVM_MEDIUM -l sim_axi4_narrow_test.log +ntb_random_seed=1  -sml=verdi
 [SimulationPlus2]
 eventDumpUnfinish = FALSE
 dumpPowerRoot = FALSE
@@ -495,8 +495,9 @@ nLineSize = 1024
 verbose_progress = FALSE
 [TestBenchBrowser]
 hideWatchView = TRUE
--showUVMDynamicHierTreeWin = FALSE
 ClassBrowserTypeFilter = 31
+ObjectBrowserMode = 2
+-showUVMDynamicHierTreeWin = FALSE
 DataViewTooltip = TRUE
 [Text]
 hdlTypeName = blue4
@@ -680,28 +681,28 @@ visualIndex = 1
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
 [VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column1]
+name = Time
+width = 60
+visualIndex = 0
+isHidden = FALSE
+isUserChangeColumnVisible = FALSE
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column2]
 name = Message
 width = 2000
 visualIndex = 4
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column2]
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column3]
 name = Code
 width = 60
 visualIndex = 2
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column3]
+[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column4]
 name = Type
 width = 60
 visualIndex = 3
 isHidden = TRUE
-isUserChangeColumnVisible = FALSE
-[VIA.interactiveDebug.preference.vgifColumnSettingRC.setting0.column4]
-name = Time
-width = 60
-visualIndex = 0
-isHidden = FALSE
 isUserChangeColumnVisible = FALSE
 [VIA.oneSearch.preference]
 DefaultDisplayTimeUnit = "1.000000ns"
@@ -710,27 +711,27 @@ DefaultLogTimeUnit = "1.000000ns"
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0]
 parRuleSets = ""
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column0]
-name = Code
-width = 60
-visualIndex = 2
-isHidden = TRUE
-isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column1]
 name = Type
 width = 60
 visualIndex = 3
 isHidden = TRUE
 isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column2]
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column1]
 name = Message
 width = 2000
 visualIndex = 4
 isHidden = FALSE
 isUserChangeColumnVisible = FALSE
-[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column3]
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column2]
 name = Time
 width = 60
 visualIndex = 0
+isHidden = TRUE
+isUserChangeColumnVisible = FALSE
+[VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column3]
+name = Code
+width = 60
+visualIndex = 2
 isHidden = TRUE
 isUserChangeColumnVisible = FALSE
 [VIA.oneSearch.preference.vgifColumnSettingRC.setting0.column4]

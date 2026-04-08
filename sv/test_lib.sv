@@ -485,4 +485,66 @@ class axi4_unaligned_addr_test extends axi4_base_test;
 
 endclass : axi4_unaligned_addr_test
 
+// Narrow Transfer Test
+// Tests narrow transfers with SIZE = byte/half-word/word (0/1/2)
+// Parameters:
+//   - LEN: random inside [0:255] (1-256 beats)
+//   - SIZE: random inside {0, 1, 2} (byte/half-word/word)
+//   - BURST: INCR
+//   - Start address: random aligned/unaligned
+//   - Number of transactions: 500
+class axi4_narrow_test extends axi4_base_test;
+    `uvm_component_utils(axi4_narrow_test)
+
+    // Constructor
+    function new(string name = "axi4_narrow_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    // Run phase
+    task run_phase(uvm_phase phase);
+        axi4_narrow_sequence seq;
+
+        phase.raise_objection(this);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       AXI4 NARROW TRANSFER TEST", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: random [1:256] beats", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: byte/half-word/word (SIZE=0/1/2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Start Address: random aligned/unaligned", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Number of Transactions: 500", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // Create and configure the sequence
+        seq = axi4_narrow_sequence::type_id::create("seq");
+
+        // Set test parameters:
+        // - LEN: random [0:255] (1-256 beats) - randomized per transaction in sequence
+        // - SIZE: random {0, 1, 2} (byte/half-word/word) - randomized per transaction
+        // - BURST: INCR
+        // - Start address: random aligned/unaligned
+        // - Number of transactions: 500
+        if (!seq.randomize() with {
+            m_num_trans  == 5000;  // 500 transactions
+            m_burst      == INCR; // INCR burst type
+        }) begin
+            `uvm_error(get_type_name(), "Sequence randomization failed")
+        end
+
+        // Start the sequence on the master sequencer
+        seq.start(m_env.m_master_agent.m_sequencer);
+
+        // Wait for all transactions to complete
+        #1000;
+
+        `uvm_info(get_type_name(), "Narrow transfer test sequence completed", UVM_MEDIUM)
+
+        phase.drop_objection(this);
+    endtask
+
+endclass : axi4_narrow_test
+
 `endif // AXI4_TEST_LIB_SV

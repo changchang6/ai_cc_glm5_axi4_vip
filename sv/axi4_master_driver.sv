@@ -291,16 +291,10 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
 
                 for (int i = 0; i < beats_this_burst; i++) begin
                     split_trans.m_wdata[i] = trans.m_wdata[start_idx + i];
-                    // For first beat of first sub-burst with unaligned address,
-                    // WSTRB will be calculated in drive_write_addr
-                    // For all other beats, WSTRB should be all valid (all 1s)
-                    if (beat_count_sent == 0 && i == 0 && trans.is_unaligned()) begin
-                        // Keep original WSTRB, will be recalculated in drive_write_addr
-                        split_trans.m_wstrb[i] = trans.m_wstrb[start_idx + i];
-                    end else begin
-                        // All other beats have aligned addresses, WSTRB all valid
-                        split_trans.m_wstrb[i] = (1 << (trans.m_data_width / 8)) - 1;
-                    end
+                    // Copy WSTRB from original transaction for all beats
+                    // WSTRB has already been correctly calculated in post_randomize()
+                    // based on transfer size and address offset
+                    split_trans.m_wstrb[i] = trans.m_wstrb[start_idx + i];
                 end
             end
 

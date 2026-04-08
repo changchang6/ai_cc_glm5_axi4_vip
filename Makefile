@@ -29,6 +29,7 @@ OUT_DIR ?= work
 # Test selection
 TEST ?= axi4_smoke_test
 SEED ?= 1
+UVM_VERB ?= UVM_MEDIUM
 
 # Simulation options
 GUI ?= 0
@@ -47,7 +48,7 @@ all: compile
 
 # VCS compilation and simulation
 vcs: compile_vcs
-	./simv_$(TEST) +UVM_TESTNAME=$(TEST) +UVM_VERBOSITY=UVM_MEDIUM \
+	./simv_$(TEST) +UVM_TESTNAME=$(TEST) +UVM_VERBOSITY=$(UVM_VERB) \
 		-l sim_$(TEST).log +FSDB_FILE=$(TEST) +ntb_random_seed=$(SEED)
 
 compile_vcs:
@@ -113,7 +114,7 @@ endif
 # Run simulation
 sim:
 ifeq ($(SIMULATOR),vcs)
-	./simv_$(TEST) +UVM_TESTNAME=$(TEST) +UVM_VERBOSITY=UVM_MEDIUM \
+	./simv_$(TEST) +UVM_TESTNAME=$(TEST) +UVM_VERBOSITY=$(UVM_VERB) \
 		-l sim_$(TEST).log $(GUI_FLAGS) +ntb_random_seed=$(SEED)
 else ifeq ($(SIMULATOR),questa)
 	vsim -c -do "run -all; quit" work.axi4_tb_top +UVM_TESTNAME=$(TEST) \

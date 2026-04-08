@@ -70,12 +70,9 @@ class axi4_transaction extends uvm_sequence_item;
         m_wstrb.size() == m_len + 1;
     }
 
-    // Constraint for WSTRB width matching data width
-    constraint c_wstrb_width {
-        foreach (m_wstrb[i]) {
-            m_wstrb[i] == ((1 << (m_data_width / 8)) - 1);
-        }
-    }
+    // Constraint for WSTRB - removed, will be calculated in post_randomize
+    // WSTRB is now properly calculated based on address offset, size, and burst type
+    // to support narrow transfers and unaligned accesses per AXI4 protocol
 
     // Constraint for address alignment with size
     // Note: This is soft constraint, can be disabled for unaligned transfers
@@ -86,6 +83,15 @@ class axi4_transaction extends uvm_sequence_item;
     // Constraint for ID width
     constraint c_id_width {
         m_id < (1 << m_id_width);
+    }
+
+    // Constraint for half_word (2-byte) transfer WSTRB
+    // WSTRB must have exactly 2 contiguous bits set to 1 (either 'b0011 or 'b1100 for 32-bit bus)
+    // For wider buses, the pattern can be shifted based on address offset
+    constraint c_half_word_wstrb {
+        (m_size == 1 && m_trans_type == WRITE) -> {
+            foreach (m_wstrb[i]) $countones(m_wstrb[i]) == 2;
+        }
     }
 
     // Constraint to disable cache, lock, prot signals for current test scenarios
@@ -136,6 +142,55 @@ class axi4_transaction extends uvm_sequence_item;
 
         // Check if bits [11:0] wrap around (cross 2KB boundary)
         return (start_addr[11:0] > end_addr[11:0]);
+    endfunction
+
+    // Post-randomize function to calculate WSTRB per AXI4 protocol
+    // For narrow transfers and unaligned accesses, WSTRB indicates valid byte lanes
+    // Data is shifted to correct byte lane position based on address offset
+    //
+    // AXI4 Protocol Rules for WSTRB:
+    // 1. WSTRB bits must be contiguous (no gaps between set bits)
+    // 2. Number of set bits = transfer size (bytes_per_beat)
+    // 3. For unaligned first beat, WSTRB is shifted by address offset
+    // 4. For narrow transfers, WSTRB width = bytes_per_beat (not data bus width)
+    function void post_randomize();
+        localparam int STRB_W = 32;  // Max strobe width (256-bit data / 8 = 32 bytes)
+        int bytes_per_beat;
+        int byte_offset;
+        int valid_bytes;
+        bit [31:0] addr;
+
+        super.post_randomize();
+
+        // Only calculate WSTRB for WRITE transactions
+        if (m_trans_type != WRITE) return;
+
+        bytes_per_beat = 1 << m_size;
+        addr = m_addr;
+
+        for (int i = 0; i <= m_len; i++) begin
+            // Calculate byte offset within the data bus for this beat
+            // For narrow transfers, this determines where data appears on the bus
+            byte_offset = int'(addr) % (m_data_width / 8);
+
+            // For all beats, valid_bytes equals bytes_per_beat
+            // WSTRB width is always equal to transfer size (narrow transfer support)
+            valid_bytes = bytes_per_beat;
+
+            // Calculate WSTRB: create mask for valid_bytes and shift to byte_offset position
+            // This ensures WSTRB has exactly bytes_per_beat contiguous bits set
+            m_wstrb[i] = ((1 << valid_bytes) - 1) << byte_offset;
+
+            // Shift data to correct byte lane position
+            // Data is initially in lower bytes, shift it to match WSTRB position
+            m_wdata[i] = (m_wdata[i] & ((256'h1 << (valid_bytes * 8)) - 1)) << (byte_offset * 8);
+
+            // Update address for next beat based on burst type
+            if (m_burst == INCR) begin
+                addr += bytes_per_beat;
+            end
+            // For FIXED burst, address stays the same
+        end
     endfunction
 
     // Function to calculate address for WRAP burst

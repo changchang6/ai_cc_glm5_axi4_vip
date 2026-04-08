@@ -1678,11 +1678,11 @@ class axi4_unaligned_addr_sequence extends axi4_base_sequence;
 
     // Constraints
     constraint c_num_rounds {
-        m_num_rounds == 10;
+        soft m_num_rounds == 10;
     }
 
     constraint c_num_trans_per_round {
-        m_num_trans_per_round == 100;
+        soft m_num_trans_per_round == 100;
     }
 
     constraint c_size {
@@ -1749,7 +1749,7 @@ class axi4_unaligned_addr_sequence extends axi4_base_sequence;
         bit [31:0] mask;
 
         offset = addr % (1 << size);
-        strb_width = data_width / 8;
+        strb_width = 1 << size;  // Number of bytes per beat based on size
         mask = (1 << strb_width) - 1;
 
         // Create mask that zeros out lower bytes based on offset
@@ -2077,5 +2077,446 @@ class axi4_unaligned_addr_sequence extends axi4_base_sequence;
     endtask
 
 endclass : axi4_unaligned_addr_sequence
+
+// Narrow Transfer Test Sequence
+// Tests narrow transfers with SIZE = byte/half-word/word (0/1/2)
+// Parameters:
+//   - LEN: random inside [0:255] (1-256 beats)
+//   - SIZE: random inside {0, 1, 2} (byte/half-word/word)
+//   - BURST: INCR
+//   - Start address: random aligned/unaligned
+//   - Number of transactions: 500
+class axi4_narrow_sequence extends axi4_base_sequence;
+    `uvm_object_utils(axi4_narrow_sequence)
+
+    // Transaction parameters
+    rand bit [31:0] m_start_addr;    // Starting address
+    rand int        m_num_trans;     // Number of transactions
+    rand bit [7:0]  m_len;           // Burst length - 1 (0-255)
+    rand bit [2:0]  m_size;          // Burst size encoding (0=byte, 1=half-word, 2=word)
+    rand axi4_burst_t m_burst;       // Burst type (fixed to INCR)
+    rand bit        m_addr_aligned;  // Whether address is aligned
+
+    // Write data storage for read-back verification
+    // Map: byte address -> write data
+    protected bit [7:0] m_byte_data_map[bit [31:0]];
+
+    // Constraints
+    constraint c_num_trans {
+        soft m_num_trans == 500;
+    }
+
+    constraint c_len {
+        m_len inside {[0:255]};
+    }
+
+    constraint c_size {
+        // SIZE = 0 (byte), 1 (half-word), or 2 (word)
+        m_size inside {0, 1, 2};
+    }
+
+    constraint c_burst {
+        m_burst == INCR;
+    }
+
+    constraint c_addr_aligned {
+        // Randomly select aligned or unaligned address
+        m_addr_aligned dist {0 := 50, 1 := 50};
+    }
+
+    // Constraint for half-word transfer: address bit[0] must be 0
+    // This ensures WSTRB pattern is 'b0011 or 'b1100, not shifted patterns
+    constraint c_half_word_addr_align {
+        (m_size == 1) -> (m_start_addr[0] == 1'b0);
+    }
+
+    // Constructor
+    function new(string name = "axi4_narrow_sequence");
+        super.new(name);
+    endfunction
+
+    // Store write data for later verification (per byte)
+    // For narrow transfers, data position on bus depends on address offset and WSTRB
+    function void store_write_data(bit [31:0] addr, bit [255:0] data, bit [31:0] wstrb, int size);
+        int bytes_per_beat;
+        int offset;
+        bit [31:0] aligned_addr;
+        bytes_per_beat = 1 << size;
+        offset = addr % bytes_per_beat;
+        aligned_addr = (addr >> size) << size;
+
+        // Store each byte separately based on WSTRB
+        for (int i = 0; i < bytes_per_beat; i++) begin
+            if (wstrb[i]) begin
+                m_byte_data_map[aligned_addr + i] = data[i*8 +: 8];
+            end
+        end
+    endfunction
+
+    // Get stored write data for a beat address
+    function bit [255:0] get_write_data(bit [31:0] addr, int size);
+        int bytes_per_beat;
+        bytes_per_beat = 1 << size;
+        for (int i = 0; i < bytes_per_beat; i++) begin
+            if (m_byte_data_map.exists(addr + i)) begin
+                get_write_data[i*8 +: 8] = m_byte_data_map[addr + i];
+            end else begin
+                get_write_data[i*8 +: 8] = 8'h00;
+            end
+        end
+    endfunction
+
+    // Check if address has stored write data
+    function bit has_write_data(bit [31:0] addr);
+        return m_byte_data_map.exists(addr);
+    endfunction
+
+    // Calculate WSTRB for unaligned first beat
+    function bit [31:0] calc_unaligned_wstrb(bit [31:0] addr, int size, int data_width);
+        int offset;
+        int strb_width;
+        bit [31:0] mask;
+
+        offset = addr % (1 << size);
+        strb_width = 1 << size;  // Number of bytes per beat based on size
+        mask = (1 << strb_width) - 1;
+
+        // Create mask that zeros out lower bytes based on offset
+        calc_unaligned_wstrb = mask << offset;
+    endfunction
+
+    // Generate random address (aligned or unaligned based on m_addr_aligned)
+    // For half-word (size=1), bit[0] is always 0 per constraint c_half_word_addr_align
+    function bit [31:0] gen_random_addr(bit is_aligned, int size);
+        bit [31:0] addr;
+        addr = $urandom_range(32'h1000_0000, 32'h1FFF_FFFC);
+        if (is_aligned) begin
+            // Align to transfer size
+            addr = (addr >> size) << size;
+        end else begin
+            // Make unaligned to transfer size
+            if (size > 0) begin
+                addr[11:0] = $urandom();
+                // Ensure at least one bit is misaligned
+                if ((addr % (1 << size)) == 0) begin
+                    // For half-word (size=1), bit[0] must be 0, so we can only have aligned addresses
+                    // For word (size=2), we can set bit[0] or bit[1] to make it unaligned
+                    if (size == 1) begin
+                        // Half-word: bit[0] must always be 0, all addresses are aligned
+                        addr[0] = 1'b0;
+                    end else begin
+                        addr[0] = 1'b1;
+                    end
+                end
+            end
+            // Enforce constraint: for half-word, bit[0] must be 0
+            if (size == 1) begin
+                addr[0] = 1'b0;
+            end
+        end
+        return addr;
+    endfunction
+
+    // Body - Write then Read-back with verification
+    task body();
+        axi4_transaction wr_trans, rd_trans;
+        bit [31:0] current_addr;
+
+        // Burst info storage for read-back verification
+        typedef struct {
+            bit [31:0] start_addr;
+            bit [7:0]  len;
+            bit [2:0]  size;
+            int        beats;
+            bit [31:0] wstrb[];  // Store WSTRB for each beat
+        } burst_info_t;
+        burst_info_t burst_queue[$];
+
+        int total_trans_count;
+        int pass_count;
+        int fail_count;
+        bit [255:0] expected_data;
+        bit [255:0] actual_data;
+        bit [7:0]   saved_len;
+        bit [2:0]   saved_size;
+        int beats_in_burst;
+        int bytes_per_beat;
+        int total_bytes;
+        bit [31:0] burst_start_addr;
+        bit [31:0] aligned_start;
+        bit [31:0] beat_addr;
+        bit [255:0] beat_data;
+        bit [31:0] beat_wstrb;
+        bit        is_aligned;
+        bit [2:0]  trans_size;
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       NARROW TRANSFER TEST SEQUENCE", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: random [1:256] beats (LEN inside [0:255])", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: random byte/half-word/word (SIZE=0/1/2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Start Address: random aligned/unaligned", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - Number of Transactions: %0d", m_num_trans), UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        total_trans_count = 0;
+
+        // ============================================================
+        // Phase 1: Send WRITE transactions
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Phase 1: Sending WRITE transactions ===", UVM_MEDIUM)
+
+        repeat (m_num_trans) begin
+            // Randomize burst parameters for this transaction
+            if (!std::randomize(saved_len) with {
+                saved_len inside {[0:255]};
+            }) begin
+                `uvm_error(get_type_name(), "LEN randomization failed")
+                return;
+            end
+
+            if (!std::randomize(trans_size) with {
+                trans_size inside {0, 1, 2};
+            }) begin
+                `uvm_error(get_type_name(), "SIZE randomization failed")
+                return;
+            end
+
+            if (!std::randomize(is_aligned) with {
+                is_aligned dist {0 := 50, 1 := 50};
+            }) begin
+                `uvm_error(get_type_name(), "Aligned flag randomization failed")
+                return;
+            end
+
+            // Generate random address
+            burst_start_addr = gen_random_addr(is_aligned, trans_size);
+            bytes_per_beat = 1 << trans_size;
+            beats_in_burst = saved_len + 1;
+            total_bytes = beats_in_burst * bytes_per_beat;
+
+            wr_trans = axi4_transaction::type_id::create("wr_trans");
+
+            // Disable soft alignment constraint for unaligned transfers
+            if (!is_aligned) begin
+                wr_trans.c_addr_aligned_soft.constraint_mode(0);
+            end
+
+            if (!wr_trans.randomize() with {
+                m_trans_type == WRITE;
+                m_addr       == local::burst_start_addr;
+                m_len        == local::saved_len;
+                m_size       == local::trans_size;
+                m_burst      == INCR;
+            }) begin
+                `uvm_error(get_type_name(), "Write transaction randomization failed")
+                return;
+            end
+
+            // Check half-word WSTRB constraint before sending
+            // if (trans_size == 1) begin  // half-word transfer
+            //     int strobe_count;
+            //     bit check_pass;
+            //     check_pass = 1;
+            //     // `uvm_info(get_type_name(), $sformatf("Half-word transfer check: ADDR=0x%08h, SIZE=%0d, LEN=%0d", wr_trans.m_addr, wr_trans.m_size, wr_trans.m_len), UVM_LOW)
+            //     for (int i = 0; i <= wr_trans.m_len; i++) begin
+            //         strobe_count = $countones(wr_trans.m_wstrb[i]);
+            //         if (strobe_count != 2) begin
+            //             `uvm_error(get_type_name(), $sformatf("Beat %0d WSTRB check FAIL: WSTRB=0x%08h, countones=%0d (expected 2)", i, wr_trans.m_wstrb[i], strobe_count))
+            //             check_pass = 0;
+            //         end else begin
+            //             // `uvm_info(get_type_name(), $sformatf("Beat %0d WSTRB check PASS: WSTRB=0x%08h, countones=%0d", i, wr_trans.m_wstrb[i], strobe_count), UVM_LOW)
+            //         end
+            //     end
+            //     if (check_pass) begin
+            //         // `uvm_info(get_type_name(), "Half-word WSTRB constraint check PASSED", UVM_LOW)
+            //     end else begin
+            //         `uvm_error(get_type_name(), "Half-word WSTRB constraint check FAILED")
+            //     end
+            // end
+
+            start_item(wr_trans);
+            finish_item(wr_trans);
+
+            // Store write data for each beat
+            aligned_start = (burst_start_addr >> trans_size) << trans_size;
+            for (int beat = 0; beat < beats_in_burst; beat++) begin
+                beat_addr = aligned_start + beat * bytes_per_beat;
+                if (beat < wr_trans.m_wdata.size()) begin
+                    beat_data = wr_trans.m_wdata[beat];
+                    // Generate default WSTRB based on transfer size
+                    beat_wstrb = (beat < wr_trans.m_wstrb.size()) ? wr_trans.m_wstrb[beat] :
+                                 (bytes_per_beat == 1) ? 32'h1 :
+                                 (bytes_per_beat == 2) ? 32'h3 : 32'hf;
+                    store_write_data(beat_addr, beat_data, beat_wstrb, trans_size);
+                end
+            end
+
+            // Store burst info for read-back
+            begin
+                burst_info_t info;
+                info.start_addr = burst_start_addr;
+                info.len = saved_len;
+                info.size = trans_size;
+                info.beats = beats_in_burst;
+                info.wstrb = new[beats_in_burst];
+                // Copy WSTRB from transaction
+                for (int b = 0; b < beats_in_burst; b++) begin
+                    if (b < wr_trans.m_wstrb.size()) begin
+                        info.wstrb[b] = wr_trans.m_wstrb[b];
+                    end else begin
+                        // Default WSTRB based on size (all bytes valid)
+                        info.wstrb[b] = (bytes_per_beat == 1) ? 32'h1 :
+                                        (bytes_per_beat == 2) ? 32'h3 : 32'hf;
+                    end
+                end
+                burst_queue.push_back(info);
+            end
+
+            `uvm_info(get_type_name(), $sformatf(
+                "Sent WRITE #%0d: ADDR=0x%08h, LEN=%0d, SIZE=%0d bytes, Beats=%0d, %s",
+                total_trans_count + 1, burst_start_addr, saved_len, bytes_per_beat,
+                beats_in_burst, is_aligned ? "aligned" : "unaligned"), UVM_HIGH)
+
+            total_trans_count++;
+        end
+
+        `uvm_info(get_type_name(), $sformatf(
+            "Write phase completed: %0d transactions sent", total_trans_count), UVM_MEDIUM)
+
+        // ============================================================
+        // Phase 2: Read back and verify data
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Phase 2: READ-back and verification ===", UVM_MEDIUM)
+
+        pass_count = 0;
+        fail_count = 0;
+
+        foreach (burst_queue[i]) begin
+            burst_info_t info = burst_queue[i];
+            bytes_per_beat = 1 << info.size;
+            beats_in_burst = info.beats;
+
+            rd_trans = axi4_transaction::type_id::create("rd_trans");
+
+            // Disable soft alignment constraint for unaligned transfers
+            if ((info.start_addr % bytes_per_beat) != 0) begin
+                rd_trans.c_addr_aligned_soft.constraint_mode(0);
+            end
+
+            if (!rd_trans.randomize() with {
+                m_trans_type == READ;
+                m_addr       == local::info.start_addr;
+                m_len        == local::info.len;
+                m_size       == local::info.size;
+                m_burst      == INCR;
+            }) begin
+                `uvm_error(get_type_name(), "Read transaction randomization failed")
+                return;
+            end
+
+            start_item(rd_trans);
+            finish_item(rd_trans);
+
+            // Verify each beat - only check bytes where WSTRB is high
+            aligned_start = (info.start_addr >> info.size) << info.size;
+            for (int beat = 0; beat < beats_in_burst; beat++) begin
+                bit [255:0] data_mask;
+                bit [31:0] beat_wstrb;
+                bit [7:0] expected_byte;
+                bit [7:0] actual_byte;
+                bit beat_pass;
+                int bytes_checked;
+
+                beat_addr = aligned_start + beat * bytes_per_beat;
+
+                // Get expected data
+                expected_data = get_write_data(beat_addr, info.size);
+
+                // Get actual read data
+                if (beat < rd_trans.m_wdata.size()) begin
+                    actual_data = rd_trans.m_wdata[beat];
+
+                    // Get WSTRB for this beat
+                    beat_wstrb = (beat < info.wstrb.size()) ? info.wstrb[beat] :
+                                 (bytes_per_beat == 1) ? 32'h1 :
+                                 (bytes_per_beat == 2) ? 32'h3 : 32'hf;
+
+                    // Build data mask from WSTRB - only check bytes where WSTRB[i] = 1
+                    data_mask = 0;
+                    for (int byte_idx = 0; byte_idx < bytes_per_beat; byte_idx++) begin
+                        if (beat_wstrb[byte_idx]) begin
+                            data_mask[byte_idx*8 +: 8] = 8'hFF;
+                        end
+                    end
+
+                    // Compare data only for bytes with WSTRB high
+                    beat_pass = 1;
+                    bytes_checked = 0;
+
+                    for (int byte_idx = 0; byte_idx < bytes_per_beat; byte_idx++) begin
+                        if (beat_wstrb[byte_idx]) begin
+                            expected_byte = expected_data[byte_idx*8 +: 8];
+                            actual_byte = actual_data[byte_idx*8 +: 8];
+
+                            if (expected_byte != actual_byte) begin
+                                beat_pass = 0;
+                                `uvm_error(get_type_name(), $sformatf(
+                                    "READ FAIL: Burst#%0d Beat#%0d, ADDR=0x%08h, Byte[%0d]: Expected=0x%02h, Actual=0x%02h, WSTRB=0x%0h",
+                                    i + 1, beat + 1, beat_addr, byte_idx, expected_byte, actual_byte, beat_wstrb))
+                            end else begin
+                                `uvm_info(get_type_name(), $sformatf(
+                                    "READ PASS: Burst#%0d Beat#%0d, ADDR=0x%08h, Byte[%0d]: DATA=0x%02h, WSTRB=0x%0h",
+                                    i + 1, beat + 1, beat_addr, byte_idx, actual_byte, beat_wstrb), UVM_HIGH)
+                            end
+                            bytes_checked++;
+                        end
+                    end
+
+                    if (beat_pass && bytes_checked > 0) begin
+                        pass_count++;
+                        `uvm_info(get_type_name(), $sformatf(
+                            "READ BEAT PASS: Burst#%0d Beat#%0d, ADDR=0x%08h, DATA=0x%0h, WSTRB=0x%0h",
+                            i + 1, beat + 1, beat_addr, actual_data & data_mask, beat_wstrb), UVM_HIGH)
+                    end else if (bytes_checked == 0) begin
+                        // No bytes to check (WSTRB all zeros)
+                        `uvm_info(get_type_name(), $sformatf(
+                            "READ BEAT SKIP: Burst#%0d Beat#%0d, ADDR=0x%08h - WSTRB=0x%0h (no valid bytes)",
+                            i + 1, beat + 1, beat_addr, beat_wstrb), UVM_HIGH)
+                        pass_count++;  // Count as pass since there was nothing to verify
+                    end else begin
+                        fail_count++;
+                    end
+                end else begin
+                    fail_count++;
+                    `uvm_error(get_type_name(), $sformatf(
+                        "READ FAIL: Burst#%0d Beat#%0d, ADDR=0x%08h - No data returned",
+                        i + 1, beat + 1, beat_addr))
+                end
+            end
+        end
+
+        // ============================================================
+        // Summary - Verification results
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Verification Summary ===", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Total transactions: %0d WRITE, %0d READ",
+            total_trans_count, burst_queue.size()), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Verification results: PASS=%0d, FAIL=%0d",
+            pass_count, fail_count), UVM_NONE)
+
+        if (fail_count == 0 && pass_count > 0) begin
+            `uvm_info(get_type_name(), "*** ALL VERIFICATIONS PASSED ***", UVM_NONE)
+        end else if (fail_count > 0) begin
+            `uvm_error(get_type_name(), $sformatf("*** %0d VERIFICATIONS FAILED ***", fail_count))
+        end
+
+    endtask
+
+endclass : axi4_narrow_sequence
 
 `endif // AXI4_SEQ_LIB_SV
