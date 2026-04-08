@@ -2708,4 +2708,222 @@ class axi4_para_cfg1_sequence extends axi4_base_sequence;
 
 endclass : axi4_para_cfg1_sequence
 
+// Boundary 2K Test Sequence
+// Tests 2K boundary crossing with INCR burst
+// Parameters:
+//   - LEN: 16 beats (m_len = 15)
+//   - SIZE: max_width (2 for 32-bit data width, 4 bytes per beat)
+//   - BURST: INCR
+//   - Start address: 2K aligned minus offset, ensuring boundary crossing
+//   - Number of test rounds: 50
+class axi4_boundary_2k_sequence extends axi4_base_sequence;
+    `uvm_object_utils(axi4_boundary_2k_sequence)
+
+    // Transaction parameters
+    rand bit [31:0] m_base_addr;    // Base address for testing
+    rand int        m_num_rounds;   // Number of test rounds (default 50)
+
+    // Write data storage for read-back verification
+    // Map: address -> write data
+    protected bit [255:0] m_write_data_map[bit [31:0]];
+
+    // Constraints
+    constraint c_num_rounds {
+        m_num_rounds == 50;
+    }
+
+    // Constructor
+    function new(string name = "axi4_boundary_2k_sequence");
+        super.new(name);
+    endfunction
+
+    // Store write data for later verification
+    function void store_write_data(bit [31:0] addr, bit [255:0] data);
+        m_write_data_map[addr] = data;
+    endfunction
+
+    // Get stored write data
+    function bit [255:0] get_write_data(bit [31:0] addr);
+        if (m_write_data_map.exists(addr)) begin
+            return m_write_data_map[addr];
+        end else begin
+            return {256{1'b0}};
+        end
+    endfunction
+
+    // Check if address has stored write data
+    function bit has_write_data(bit [31:0] addr);
+        return m_write_data_map.exists(addr);
+    endfunction
+
+    // Body - Write then Read-back with verification
+    task body();
+        axi4_transaction wr_trans, rd_trans;
+        bit [31:0] current_addr;
+        bit [31:0] addr_queue[$];  // Queue to store addresses for read-back
+        int round_count;
+        int pass_count;
+        int fail_count;
+        bit [255:0] expected_data;
+        bit [255:0] actual_data;
+        bit [255:0] data_mask;
+
+        // Fixed parameters for this test
+        bit [7:0]  m_len  = 8'd15;  // LEN = 16 beats
+        bit [2:0]  m_size = 3'd2;   // SIZE = 2 (4 bytes per beat)
+        axi4_burst_t m_burst = INCR;
+
+        // Calculate data mask based on data width
+        data_mask = {`AXI4_DATA_WIDTH{1'b1}};
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       AXI4 BOUNDARY 2K TEST SEQUENCE", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: 16 beats (LEN=15)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: 4 bytes (SIZE=2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - Base Address: 0x%08h", m_base_addr), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf("  - Number of Test Rounds: %0d", m_num_rounds), UVM_NONE)
+        `uvm_info(get_type_name(), "  - Each round tests 2K boundary crossing", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // ============================================================
+        // Phase 1: Send WRITE transactions for each round
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Phase 1: Sending WRITE transactions ===", UVM_MEDIUM)
+
+        round_count = 0;
+
+        // Test 50 different addresses, each crossing a 2K boundary
+        repeat (m_num_rounds) begin
+            bit [31:0] test_addr;
+            int offset;
+
+            // Calculate offset to ensure boundary crossing
+            // Each beat is 4 bytes, 16 beats = 64 bytes total
+            // To cross 2K boundary, we need start address near 2K boundary
+            // offset from 2K aligned address: (16 beats - 1) * 4 bytes = 60 bytes
+            // So start address should be at most 60 bytes before boundary
+            // Use random offset between 0 and 60 (inclusive)
+            offset = $urandom_range(0, 60);
+
+            // Calculate test address: 2K aligned base + round * 4K (each 2K boundary) - offset
+            // This ensures we test different 2K boundaries
+            test_addr = {m_base_addr[31:12], 12'b0} + (round_count * 4096) + (2048 - offset);
+
+            // Ensure address is 4-byte aligned
+            test_addr[1:0] = 2'b00;
+
+            `uvm_info(get_type_name(), $sformatf(
+                "Round %0d: Testing 2K boundary at ADDR=0x%08h (boundary at 0x%08h)",
+                round_count + 1, test_addr, {test_addr[31:12], 12'b0} + 2048), UVM_HIGH)
+
+            wr_trans = axi4_transaction::type_id::create("wr_trans");
+
+            if (!wr_trans.randomize() with {
+                m_trans_type == WRITE;
+                m_addr       == local::test_addr;
+                m_len        == local::m_len;
+                m_size       == local::m_size;
+                m_burst      == local::m_burst;
+            }) begin
+                `uvm_error(get_type_name(), "Write transaction randomization failed")
+                return;
+            end
+
+            start_item(wr_trans);
+            finish_item(wr_trans);
+
+            // Store write data and address for verification
+            if (wr_trans.m_wdata.size() > 0) begin
+                store_write_data(test_addr, wr_trans.m_wdata[0]);
+                addr_queue.push_back(test_addr);
+            end
+
+            `uvm_info(get_type_name(), $sformatf(
+                "Sent WRITE #%0d: ADDR=0x%08h, DATA=0x%08h",
+                round_count + 1, wr_trans.m_addr, wr_trans.m_wdata[0][31:0]), UVM_HIGH)
+
+            round_count++;
+        end
+
+        `uvm_info(get_type_name(), $sformatf(
+            "Write phase completed: %0d transactions sent", m_num_rounds), UVM_MEDIUM)
+
+        // ============================================================
+        // Phase 2: Read back and verify all data
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Phase 2: READ-back and verification ===", UVM_MEDIUM)
+
+        pass_count = 0;
+        fail_count = 0;
+
+        foreach (addr_queue[i]) begin
+            rd_trans = axi4_transaction::type_id::create("rd_trans");
+
+            if (!rd_trans.randomize() with {
+                m_trans_type == READ;
+                m_addr       == local::addr_queue[i];
+                m_len        == local::m_len;
+                m_size       == local::m_size;
+                m_burst      == local::m_burst;
+            }) begin
+                `uvm_error(get_type_name(), "Read transaction randomization failed")
+                return;
+            end
+
+            start_item(rd_trans);
+            finish_item(rd_trans);
+
+            // Get expected and actual data
+            expected_data = get_write_data(addr_queue[i]);
+
+            if (rd_trans.m_wdata.size() > 0) begin
+                actual_data = rd_trans.m_wdata[0];
+
+                // Compare data (only compare valid bytes based on data width)
+                if ((actual_data & data_mask) == (expected_data & data_mask)) begin
+                    pass_count++;
+                    `uvm_info(get_type_name(), $sformatf(
+                        "READ PASS #%0d: ADDR=0x%08h, DATA=0x%08h",
+                        i + 1, addr_queue[i], actual_data[31:0]), UVM_HIGH)
+                end else begin
+                    fail_count++;
+                    `uvm_error(get_type_name(), $sformatf(
+                        "READ FAIL #%0d: ADDR=0x%08h, Expected=0x%08h, Actual=0x%08h",
+                        i + 1, addr_queue[i], expected_data[31:0], actual_data[31:0]))
+                end
+            end else begin
+                fail_count++;
+                `uvm_error(get_type_name(), $sformatf(
+                    "READ #%0d: ADDR=0x%08h - No data returned",
+                    i + 1, addr_queue[i]))
+            end
+        end
+
+        // ============================================================
+        // Summary
+        // ============================================================
+        `uvm_info(get_type_name(), "=== Verification Summary ===", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Configuration: DATA_WIDTH=%0d, ADDR_WIDTH=%0d, ID_WIDTH=%0d",
+            `AXI4_DATA_WIDTH, `AXI4_ADDR_WIDTH, `AXI4_ID_WIDTH), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Total transactions: %0d WRITE, %0d READ",
+            m_num_rounds, m_num_rounds), UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "Verification results: PASS=%0d, FAIL=%0d",
+            pass_count, fail_count), UVM_NONE)
+
+        if (fail_count == 0 && pass_count > 0) begin
+            `uvm_info(get_type_name(), "*** ALL VERIFICATIONS PASSED ***", UVM_NONE)
+        end else if (fail_count > 0) begin
+            `uvm_error(get_type_name(), $sformatf("*** %0d VERIFICATIONS FAILED ***", fail_count))
+        end
+
+    endtask
+
+endclass : axi4_boundary_2k_sequence
+
 `endif // AXI4_SEQ_LIB_SV

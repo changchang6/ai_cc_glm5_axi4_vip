@@ -328,6 +328,38 @@ interface axi4_interface #(
     // If starting address is unaligned, first beat WSTRB must have lower bytes masked
     // This is checked at the driver level as it requires knowledge of the transfer
 
+    // Assertion 13: 2KB Boundary Crossing Check for Write Burst
+    // For INCR burst, the burst must not cross a 2KB boundary after splitting
+    // Burst size = (awlen + 1) * (1 << awsize) bytes
+    // 2KB = 2048 bytes = 2^11, boundary at address[10:0] == 0
+    // We check bits [31:11] to determine 2KB region
+    property p_awaddr_2kb_boundary;
+        @(posedge ACLK) disable iff (!ARESETn)
+        (awvalid && awburst == 2'b01) |->
+            // Check that burst doesn't cross 2KB boundary
+            // end_addr = awaddr + (awlen+1)*(1<<awsize) - 1
+            // Crosses boundary if: awaddr[31:11] != end_addr[31:11]
+            // Use 12-bit arithmetic to avoid overflow (2048 needs 12 bits)
+            ((awaddr[10:0] + ((awlen + 1) << awsize)) <= 12'd2048);
+    endproperty
+
+    assert property (p_awaddr_2kb_boundary)
+        else `uvm_error("AXI4_ASSERT", $sformatf("Write burst crosses 2KB boundary: awaddr=0x%0h, awlen=%0d, awsize=%0d", awaddr, awlen, awsize))
+
+    cover property (p_awaddr_2kb_boundary);
+
+    // Assertion 14: 2KB Boundary Crossing Check for Read Burst
+    property p_araddr_2kb_boundary;
+        @(posedge ACLK) disable iff (!ARESETn)
+        (arvalid && arburst == 2'b01) |->
+            ((araddr[10:0] + ((arlen + 1) << arsize)) <= 12'd2048);
+    endproperty
+
+    assert property (p_araddr_2kb_boundary)
+        else `uvm_error("AXI4_ASSERT", $sformatf("Read burst crosses 2KB boundary: araddr=0x%0h, arlen=%0d, arsize=%0d", araddr, arlen, arsize))
+
+    cover property (p_araddr_2kb_boundary);
+
     // Additional helper tasks
     task automatic wait_for_reset();
         @(posedge ARESETn);

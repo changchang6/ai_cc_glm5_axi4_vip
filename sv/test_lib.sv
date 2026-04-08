@@ -600,4 +600,62 @@ class axi4_para_cfg1_test extends axi4_base_test;
 
 endclass : axi4_para_cfg1_test
 
+// Boundary 2K Test
+// Tests 2K boundary crossing with INCR burst
+// Parameters:
+//   - LEN: 16 beats (m_len = 15)
+//   - SIZE: max_width (4 bytes for 32-bit data)
+//   - BURST: INCR
+//   - Start address: 2K aligned minus offset (ensures boundary crossing)
+//   - Number of test rounds: 50
+class axi4_boundary_2k_test extends axi4_base_test;
+    `uvm_component_utils(axi4_boundary_2k_test)
+
+    // Constructor
+    function new(string name = "axi4_boundary_2k_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    // Run phase
+    task run_phase(uvm_phase phase);
+        axi4_boundary_2k_sequence seq;
+
+        phase.raise_objection(this);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       AXI4 BOUNDARY 2K TEST", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: 16 beats (LEN=15)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: 4 bytes (SIZE=2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Start Address: 2K aligned minus offset", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Number of Test Rounds: 50", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Each round crosses a 2K boundary", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // Create and configure the sequence
+        seq = axi4_boundary_2k_sequence::type_id::create("seq");
+
+        // Set test parameters
+        if (!seq.randomize() with {
+            m_base_addr  == 32'h1000_0000; // Base address
+            m_num_rounds == 50;            // 50 test rounds
+        }) begin
+            `uvm_error(get_type_name(), "Sequence randomization failed")
+        end
+
+        // Start the sequence on the master sequencer
+        seq.start(m_env.m_master_agent.m_sequencer);
+
+        // Wait for all transactions to complete
+        #1000;
+
+        `uvm_info(get_type_name(), "Boundary 2K test sequence completed", UVM_MEDIUM)
+
+        phase.drop_objection(this);
+    endtask
+
+endclass : axi4_boundary_2k_test
+
 `endif // AXI4_TEST_LIB_SV

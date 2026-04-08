@@ -261,8 +261,10 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
                 split_trans.m_addr = aligned_start + beat_count_sent * beat_size;
             end
 
-            // Calculate bytes until 2KB boundary
-            next_2kb_boundary = ((split_trans.m_addr / 2048) + 1) * 2048;
+            // Calculate next 2KB boundary address
+            // 2KB = 2048 bytes = 2^11
+            // next_2kb_boundary = ((addr >> 11) + 1) << 11
+            next_2kb_boundary = ((split_trans.m_addr >> 11) + 1) << 11;
             bytes_until_boundary = next_2kb_boundary - split_trans.m_addr;
 
             // Determine beats for this burst
@@ -273,10 +275,11 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
                 beats_this_burst = max_beats_per_burst;
             end
 
-            // Limit by 2KB boundary
+            // Limit by 2KB boundary - must not cross boundary
             bytes_this_burst = beats_this_burst * beat_size;
             if (bytes_this_burst > bytes_until_boundary) begin
                 beats_this_burst = bytes_until_boundary / beat_size;
+                // Ensure at least 1 beat
                 if (beats_this_burst == 0) beats_this_burst = 1;
             end
 

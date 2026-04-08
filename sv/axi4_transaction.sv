@@ -133,15 +133,27 @@ class axi4_transaction extends uvm_sequence_item;
     endfunction
 
     // Function to check if address crosses 2KB boundary
+    // For INCR burst, a transfer must not cross a 4KB boundary per AXI4 spec
+    // This function checks for 2KB boundary crossing as required by specific use cases
+    // 2KB = 2048 bytes = 2^11, so boundary is at every address where [10:0] == 0
+    // We check bits [31:11] to determine 2KB region
     function bit crosses_2kb_boundary();
         bit [31:0] start_addr;
         bit [31:0] end_addr;
+        bit [31:0] transfer_size;
 
         start_addr = m_addr;
-        end_addr = m_addr + get_transfer_size_bytes() - 1;
+        transfer_size = get_transfer_size_bytes();
+        end_addr = start_addr + transfer_size - 1;
 
-        // Check if bits [11:0] wrap around (cross 2KB boundary)
-        return (start_addr[11:0] > end_addr[11:0]);
+        // Check if start and end addresses are in different 2KB regions
+        // 2KB = 2048 bytes, boundary at address[10:0] == 0
+        // Crossing occurs when bits [31:11] of start and end are different
+        if (start_addr[31:11] != end_addr[31:11]) begin
+            return 1;
+        end
+
+        return 0;
     endfunction
 
     // Post-randomize function to calculate WSTRB per AXI4 protocol
