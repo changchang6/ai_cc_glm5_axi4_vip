@@ -71,7 +71,7 @@ class axi4_config extends uvm_object;
     int max_write_outstanding[$];  // Max pending write transactions
 
     // Clock frequency for statistics calculation (in MHz)
-    real clk_freq_mhz = 100.0;
+    real clk_freq_mhz = 1000.0;
 
     // Legacy compatibility parameters (single master)
     int m_data_width = `AXI4_DATA_WIDTH;

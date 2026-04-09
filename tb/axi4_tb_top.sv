@@ -31,7 +31,7 @@ module axi4_tb_top;
     // Clock generation - 100MHz
     initial begin
         ACLK = 0;
-        forever #5 ACLK = ~ACLK;
+        forever #0.5 ACLK = ~ACLK;
     end
 
     // Reset generation

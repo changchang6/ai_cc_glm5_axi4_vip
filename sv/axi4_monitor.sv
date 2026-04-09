@@ -457,7 +457,7 @@ class axi4_monitor extends uvm_monitor;
 
         super.report_phase(phase);
 
-        total_time_ns = ($realtime - m_start_time) / 1000.0;  // Convert to ns
+        total_time_ns = $realtime - m_start_time;  // Already in ns (timescale 1ns/1ps)
 
         `uvm_info(get_type_name(), "===== AXI4 Monitor Statistics =====", UVM_NONE)
         `uvm_info(get_type_name(), "-----------------------------------", UVM_NONE)
@@ -498,12 +498,15 @@ class axi4_monitor extends uvm_monitor;
 
         // Bandwidth statistics
         if (m_bw_stats.total_bytes > 0 && total_time_ns > 0) begin
-            // Bandwidth in MB/s
-            bandwidth_mbps = (real'(m_bw_stats.total_bytes) * 8.0) /
-                             (total_time_ns / 1000.0) / 1.0e6;
+            // Calculate actual bandwidth in MB/s
+            // total_time_ns is in nanoseconds, convert to seconds
+            bandwidth_mbps = (real'(m_bw_stats.total_bytes) / 1024.0 / 1024.0) /
+                             (total_time_ns / 1_000_000_000.0);
 
-            // Theoretical max bandwidth
-            m_bw_stats.bandwidth_mbps = m_cfg.m_clock_freq_mhz * m_cfg.m_data_width;
+            // Calculate theoretical max bandwidth in MB/s
+            // clock_freq_mhz * data_width_bytes = MB/s
+            m_bw_stats.bandwidth_mbps = real'(m_cfg.m_clock_freq_mhz) *
+                                        (real'(m_cfg.m_data_width) / 8.0);
 
             // Efficiency
             efficiency = (bandwidth_mbps / m_bw_stats.bandwidth_mbps) * 100.0;

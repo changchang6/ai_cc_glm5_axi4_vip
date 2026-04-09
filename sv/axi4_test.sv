@@ -39,7 +39,7 @@ class axi4_base_test extends uvm_test;
         m_cfg.m_support_data_before_addr = 0;
         m_cfg.m_wtimeout = 1000;
         m_cfg.m_rtimeout = 1000;
-        m_cfg.m_clock_freq_mhz = 100.0;
+        m_cfg.m_clock_freq_mhz = 1000.0;
         m_cfg.m_is_active = 1;
         m_cfg.m_has_coverage = 1;
         m_cfg.m_enable_burst_split = 1;
