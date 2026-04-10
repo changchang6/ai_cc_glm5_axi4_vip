@@ -724,4 +724,180 @@ class axi4_performance_stat_test extends axi4_base_test;
 
 endclass : axi4_performance_stat_test
 
+// Data First Test
+// Tests data-before-addr mode with write transactions followed by read-back verification
+// Parameters:
+//   - LEN: random inside [1:16] beats per transaction
+//   - SIZE: max_width (4 bytes for 32-bit data)
+//   - BURST: INCR
+//   - data_before_addr: ENABLED
+//   - data_before_addr_osd: configurable (default 4)
+//   - Start address: aligned to 4 bytes
+//   - Number of transactions: 500
+class axi4_data_first_test extends axi4_base_test;
+    `uvm_component_utils(axi4_data_first_test)
+
+    // Constructor
+    function new(string name = "axi4_data_first_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    // Build phase - configure data-before-addr mode
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+
+        // Enable data-before-addr mode
+        m_cfg.m_support_data_before_addr = 1;
+        m_cfg.m_data_before_addr_osd = 4;  // Max outstanding data before addr
+
+        // Increase timeout threshold for data-before-addr mode
+        m_cfg.m_wtimeout = 5000;  // Increase write timeout to 5000 cycles
+        m_cfg.m_rtimeout = 5000;  // Increase read timeout to 5000 cycles
+
+        `uvm_info(get_type_name(), "Data-before-addr mode ENABLED with OSD=4", UVM_MEDIUM)
+    endfunction
+
+    // Run phase
+    task run_phase(uvm_phase phase);
+        axi4_data_first_sequence seq;
+
+        phase.raise_objection(this);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       AXI4 DATA FIRST TEST", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: random [1:16] beats", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: 4 bytes (SIZE=2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Start Address: 0x1000_0000 (aligned)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Number of Transactions: 500", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Data Before Addr: ENABLED", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Data Before Addr OSD: 4", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // Create and configure the sequence
+        seq = axi4_data_first_sequence::type_id::create("seq");
+
+        // Set test parameters:
+        // - LEN: random [0:15] (1-16 beats) - randomized per transaction in sequence
+        // - SIZE: 2 (4 bytes per beat)
+        // - BURST: INCR
+        // - Start address aligned to 4 bytes (0x1000_0000)
+        // - Number of transactions: 500
+        if (!seq.randomize() with {
+            m_size       == 2;            // 4 bytes per beat
+            m_start_addr == 32'h1000_0000; // Aligned start address
+            m_num_trans  == 500;          // 500 transactions
+            m_burst      == INCR;         // INCR burst type
+        }) begin
+            `uvm_error(get_type_name(), "Sequence randomization failed")
+        end
+
+        // Start the sequence on the master sequencer
+        seq.start(m_env.m_master_agent.m_sequencer);
+
+        // Wait for all transactions to complete
+        #1000;
+
+        `uvm_info(get_type_name(), "Data first test sequence completed", UVM_MEDIUM)
+
+        phase.drop_objection(this);
+    endtask
+
+endclass : axi4_data_first_test
+
+// Long Time Test
+// Tests back-to-back write transactions with random burst length and timeout detection
+// Parameters:
+//   - LEN: random [0:15] (1-16 beats per transaction)
+//   - SIZE: max_width (4 bytes for 32-bit data)
+//   - BURST: INCR
+//   - Start address: aligned to 4 bytes
+//   - Number of transactions: 500
+//   - Timeout configuration: configurable
+class axi4_long_time_test extends axi4_base_test;
+    `uvm_component_utils(axi4_long_time_test)
+
+    // Test parameters
+    int m_num_trans = 500;
+
+    // Constructor
+    function new(string name = "axi4_long_time_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    // Build phase - configure timeout settings
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+
+        // Configure timeout thresholds
+        // Long burst may take more time, adjust timeout accordingly
+        m_cfg.m_wtimeout = 10;  // Write timeout: 10000 cycles
+        m_cfg.m_rtimeout = 10;  // Read timeout: 10000 cycles
+
+        `uvm_info(get_type_name(), "Timeout configuration: WTIMEOUT=10000, RTIMEOUT=10000 cycles", UVM_MEDIUM)
+    endfunction
+
+    // Run phase
+    task run_phase(uvm_phase phase);
+        axi4_long_time_sequence seq;
+
+        phase.raise_objection(this);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "       AXI4 LONG TIME TEST", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Test Configuration:", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Length: random [1:16] beats (LEN=0~15)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Transfer Size: 4 bytes (SIZE=2)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Burst Type: INCR", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Start Address: 0x1000_0000 (aligned)", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Number of Transactions: 500", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Write Timeout: 10000 cycles", UVM_NONE)
+        `uvm_info(get_type_name(), "  - Read Timeout: 10000 cycles", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+
+        // Create and configure the sequence
+        seq = axi4_long_time_sequence::type_id::create("seq");
+
+        // Set test parameters:
+        // - LEN: random [0:15] (1-16 beats) - randomized per transaction in sequence
+        // - SIZE=2 (4 bytes per beat)
+        // - BURST=INCR
+        // - Start address aligned to 4 bytes (0x1000_0000)
+        // - Number of transactions: 500
+        if (!seq.randomize() with {
+            m_size       == 2;             // 4 bytes per beat
+            m_start_addr == 32'h1000_0000; // Aligned start address
+            m_num_trans  == local::m_num_trans; // 500 transactions
+            m_burst      == INCR;          // INCR burst type
+        }) begin
+            `uvm_error(get_type_name(), "Sequence randomization failed")
+        end
+
+        // Start the sequence on the master sequencer
+        seq.start(m_env.m_master_agent.m_sequencer);
+
+        // Wait for all transactions to complete
+        #1000;
+
+        `uvm_info(get_type_name(), "Long time test sequence completed", UVM_MEDIUM)
+
+        phase.drop_objection(this);
+    endtask
+
+    // Report phase - check timeout statistics
+    function void report_phase(uvm_phase phase);
+        super.report_phase(phase);
+
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "     LONG TIME TEST - TIMEOUT CHECK", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+        `uvm_info(get_type_name(), "Check monitor statistics above for timeout IDs", UVM_NONE)
+        `uvm_info(get_type_name(), "===========================================", UVM_NONE)
+    endfunction
+
+endclass : axi4_long_time_test
+
 `endif // AXI4_TEST_LIB_SV

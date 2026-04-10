@@ -315,9 +315,11 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
         fork
             if (trans.m_trans_type == WRITE) begin
                 if (m_cfg.m_support_data_before_addr) begin
+                    // Data-before-addr mode: W data starts first, then AW address
+                    // Use fork...join_none to start W data first, then delay before AW
                     fork
                         drive_write_data(trans);
-                        drive_write_addr(trans);
+                        drive_write_addr_delayed(trans);
                     join
                 end else begin
                     drive_write_addr(trans);
@@ -341,6 +343,16 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
         if (m_cfg.m_trans_interval > 0) begin
             repeat(m_cfg.m_trans_interval) @(posedge m_vif.ACLK);
         end
+    endtask
+
+    // Drive write address channel with delay (for data-before-addr mode)
+    task drive_write_addr_delayed(axi4_transaction trans);
+        // Wait for the specified number of cycles before driving AW
+        // This ensures W data starts before AW address
+        repeat(m_cfg.m_data_before_addr_osd) @(posedge m_vif.ACLK);
+
+        // Now drive the AW channel normally
+        drive_write_addr(trans);
     endtask
 
     // Drive write address channel

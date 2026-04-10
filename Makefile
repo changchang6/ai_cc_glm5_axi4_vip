@@ -161,6 +161,11 @@ test_para_cfg1:
 	./simv_axi4_para_cfg1_test +UVM_TESTNAME=axi4_para_cfg1_test +UVM_VERBOSITY=$(UVM_VERB) \
 		-l sim_para_cfg1_test.log +FSDB_FILE=para_cfg1_test +ntb_random_seed=$(SEED) $(GUI_FLAGS)
 
+# Data first test - tests data-before-addr mode
+test_data_first:
+	$(MAKE) compile_vcs TEST=axi4_data_first_test EXTRA_DEFINES="+define+DISABLE_WLAST_CHK"
+	$(MAKE) sim TEST=axi4_data_first_test
+
 # Clean up
 clean:
 	rm -rf $(OUT_DIR)

@@ -1,0 +1,9 @@
+#!/bin/sh -h 
+PYTHONHOME=/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/vcs_201809/vcs/O-2018.09-SP2/etc/search/pyh
+export PYTHONHOME
+PYTHONPATH=/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/vcs_201809/vcs/O-2018.09-SP2/linux64/lib/pylib27
+export PYTHONPATH
+LD_LIBRARY_PATH=/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/vcs_201809/vcs/O-2018.09-SP2/linux64/lib:/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/vcs_201809/vcs/O-2018.09-SP2/linux64/lib/pylib27
+export LD_LIBRARY_PATH
+/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/vcs_201809/vcs/O-2018.09-SP2/linux64/bin/vcsfind_create_index.exe  -z  "/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/simv_axi4_long_time_test.daidir/debug_dump/fsearch/./idents_tVTVCv.xml.gz" "/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/simv_axi4_long_time_test.daidir/debug_dump/fsearch/./idents_tapi.xml.gz" -o "/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/simv_axi4_long_time_test.daidir/debug_dump/fsearch/fsearch.db_tmp"
+\mv "/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/simv_axi4_long_time_test.daidir/debug_dump/fsearch/fsearch.db_tmp" "/home/xingchangchang/ai_evaluation/claude_code/axi4_vip/ai_cc_glm5_axi4_vip/simv_axi4_long_time_test.daidir/debug_dump/fsearch/fsearch.db"

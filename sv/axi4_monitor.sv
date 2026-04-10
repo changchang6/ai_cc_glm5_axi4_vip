@@ -37,6 +37,23 @@ class axi4_monitor extends uvm_monitor;
     local int m_rd_timeout_q[$];  // Stores start cycle for each read
     local int m_cycle_count;
 
+    // Timeout ID tracking
+    local int m_wr_timeout_id_q[$];  // Stores IDs of write timeouts
+    local int m_rd_timeout_id_q[$];  // Stores IDs of read timeouts
+    local int m_wr_timeout_count;    // Total write timeout count
+    local int m_rd_timeout_count;    // Total read timeout count
+
+    // Track which transactions have received their W data
+    bit m_wr_data_done[$];
+
+    // Data-before-addr support: buffer for W data beats that arrive before AW
+    typedef struct {
+        bit [255:0] wdata;    // Max data width
+        bit [31:0]  wstrb;    // Max strobe width
+        bit         wlast;
+    } w_data_buf_t;
+    local w_data_buf_t m_w_data_buf[$];  // Buffer for W data before AW arrives
+
     // Constructor
     function new(string name = "axi4_monitor", uvm_component parent = null);
         super.new(name, parent);
@@ -52,6 +69,10 @@ class axi4_monitor extends uvm_monitor;
         m_wr_latency_stats.max_latency = 0;
         m_wr_latency_stats.total_latency = 0;
         m_wr_latency_stats.trans_count = 0;
+
+        // Initialize timeout tracking
+        m_wr_timeout_count = 0;
+        m_rd_timeout_count = 0;
     endfunction
 
     // Build phase
@@ -142,22 +163,51 @@ class axi4_monitor extends uvm_monitor;
 
                 m_wr_trans_q.push_back(trans);
 
-                // Track for timeout
+                // Track for timeout - start from AW handshake
                 m_wr_timeout_q.push_back(m_cycle_count);
 
                 `uvm_info(get_type_name(), $sformatf("AW Channel: ID=%0d, ADDR=0x%08h, LEN=%0d",
                     trans.m_id, trans.m_addr, trans.m_len), UVM_HIGH)
+
+                // Data-before-addr: Check if there's buffered W data to match
+                // The buffered W data should match this transaction in FIFO order
+                if (m_w_data_buf.size() > 0) begin
+                    // Variable declarations must be at the beginning of the block
+                    automatic int beat_idx = 0;
+                    automatic int beats_to_copy = trans.m_len + 1;
+                    automatic w_data_buf_t w_buf;
+
+                    // Copy buffered W data to this transaction
+                    while (m_w_data_buf.size() > 0 && beat_idx < beats_to_copy) begin
+                        w_buf = m_w_data_buf.pop_front();
+                        trans.m_wdata[beat_idx] = w_buf.wdata;
+                        trans.m_wstrb[beat_idx] = w_buf.wstrb;
+
+                        `uvm_info(get_type_name(), $sformatf(
+                            "AW Channel: Matched buffered W beat %0d, WLAST=%b",
+                            beat_idx, w_buf.wlast), UVM_HIGH)
+
+                        beat_idx++;
+
+                        if (w_buf.wlast) begin
+                            // This buffered transaction is complete
+                            m_wr_data_done.push_back(1);
+                            break;
+                        end
+                    end
+
+                    // If we didn't get all beats, wait for more W data
+                    // Will be handled by monitor_w_channel
+                end
             end
         end
     endtask
-
-    // Track which transactions have received their W data
-    bit m_wr_data_done[$];
 
     // Monitor write data channel
     task monitor_w_channel();
         int beat_count;
         int trans_idx;
+        w_data_buf_t w_buf;  // Variable for data-before-addr case
 
         forever begin
             @(posedge m_vif.ACLK);
@@ -165,6 +215,7 @@ class axi4_monitor extends uvm_monitor;
                 beat_count = 0;
                 trans_idx = 0;
                 m_wr_data_done.delete();
+                m_w_data_buf.delete();
                 continue;
             end
 
@@ -174,6 +225,7 @@ class axi4_monitor extends uvm_monitor;
                 trans_idx = m_wr_data_done.size();
 
                 if (trans_idx < m_wr_trans_q.size()) begin
+                    // Normal case: AW arrived before or at the same time as W data
                     // Store write data
                     m_wr_trans_q[trans_idx].m_wdata[beat_count] = m_vif.monitor_cb.wdata;
                     m_wr_trans_q[trans_idx].m_wstrb[beat_count] = m_vif.monitor_cb.wstrb;
@@ -188,6 +240,17 @@ class axi4_monitor extends uvm_monitor;
                     end else begin
                         beat_count++;
                     end
+                end else begin
+                    // Data-before-addr case: W data arrived before AW
+                    // Buffer the W data for later matching
+                    w_buf.wdata = m_vif.monitor_cb.wdata;
+                    w_buf.wstrb = m_vif.monitor_cb.wstrb;
+                    w_buf.wlast = m_vif.monitor_cb.wlast;
+                    m_w_data_buf.push_back(w_buf);
+
+                    `uvm_info(get_type_name(), $sformatf(
+                        "W Channel (data-before-addr): Buffered W beat, WLAST=%b, buf_size=%0d",
+                        m_vif.monitor_cb.wlast, m_w_data_buf.size()), UVM_HIGH)
                 end
             end
         end
@@ -390,6 +453,10 @@ class axi4_monitor extends uvm_monitor;
             // Check write timeouts
             for (int i = 0; i < m_wr_timeout_q.size(); i++) begin
                 if ((m_cycle_count - m_wr_timeout_q[i]) > m_cfg.m_wtimeout) begin
+                    // Record timeout ID for statistics
+                    m_wr_timeout_id_q.push_back(m_wr_trans_q[i].m_id);
+                    m_wr_timeout_count++;
+
                     `uvm_error(get_type_name(), $sformatf(
                         "Write timeout detected! AWID=%0d, waited %0d cycles (threshold=%0d)",
                         m_wr_trans_q[i].m_id, m_cycle_count - m_wr_timeout_q[i], m_cfg.m_wtimeout))
@@ -403,6 +470,10 @@ class axi4_monitor extends uvm_monitor;
             // Check read timeouts
             for (int i = 0; i < m_rd_timeout_q.size(); i++) begin
                 if ((m_cycle_count - m_rd_timeout_q[i]) > m_cfg.m_rtimeout) begin
+                    // Record timeout ID for statistics
+                    m_rd_timeout_id_q.push_back(m_rd_trans_q[i].m_id);
+                    m_rd_timeout_count++;
+
                     `uvm_error(get_type_name(), $sformatf(
                         "Read timeout detected! ARID=%0d, waited %0d cycles (threshold=%0d)",
                         m_rd_trans_q[i].m_id, m_cycle_count - m_rd_timeout_q[i], m_cfg.m_rtimeout))
@@ -522,6 +593,28 @@ class axi4_monitor extends uvm_monitor;
                 "  Theoretical Max: %.2f MB/s", m_bw_stats.bandwidth_mbps), UVM_NONE)
             `uvm_info(get_type_name(), $sformatf(
                 "  Bandwidth Efficiency: %.2f%%", efficiency), UVM_NONE)
+        end
+
+        // Timeout statistics
+        `uvm_info(get_type_name(), "Timeout Statistics:", UVM_NONE)
+        `uvm_info(get_type_name(), $sformatf(
+            "  Write Timeout Count: %0d", m_wr_timeout_count), UVM_NONE)
+        if (m_wr_timeout_count > 0) begin
+            `uvm_info(get_type_name(), "  Write Timeout IDs:", UVM_NONE)
+            foreach (m_wr_timeout_id_q[i]) begin
+                `uvm_info(get_type_name(), $sformatf(
+                    "    Timeout #%0d: AWID=%0d", i+1, m_wr_timeout_id_q[i]), UVM_NONE)
+            end
+        end
+
+        `uvm_info(get_type_name(), $sformatf(
+            "  Read Timeout Count: %0d", m_rd_timeout_count), UVM_NONE)
+        if (m_rd_timeout_count > 0) begin
+            `uvm_info(get_type_name(), "  Read Timeout IDs:", UVM_NONE)
+            foreach (m_rd_timeout_id_q[i]) begin
+                `uvm_info(get_type_name(), $sformatf(
+                    "    Timeout #%0d: ARID=%0d", i+1, m_rd_timeout_id_q[i]), UVM_NONE)
+            end
         end
 
         `uvm_info(get_type_name(), "-----------------------------------", UVM_NONE)

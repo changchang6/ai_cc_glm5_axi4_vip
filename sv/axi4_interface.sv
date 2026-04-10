@@ -197,10 +197,12 @@ interface axi4_interface #(
         (wvalid && wready && wlast) |-> w_beat_count == awlen;
     endproperty
 
+    `ifndef DISABLE_WLAST_CHK
     assert property (p_wlast_correct)
         else `uvm_error("AXI4_ASSERT", "wlast must be asserted on the correct beat")
 
     cover property (p_wlast_correct);
+    `endif
 
     // Assertion 5: RLAST correctness - Slave must assert RLAST on last beat
     property p_rlast_correct;

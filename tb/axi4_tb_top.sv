@@ -53,11 +53,12 @@ module axi4_tb_top;
 
     //-------------------------------------------------------------------------
     // Simple Slave Model with Memory (based on ai_cc_opus_axi4_vip reference)
+    // Supports data-before-addr mode with ID-based matching
     //-------------------------------------------------------------------------
     // Memory model: associative array indexed by byte address
     logic [7:0] mem [logic [ADDR_WIDTH-1:0]];
 
-    // Write channel state - support outstanding transactions
+    // Write channel state - support outstanding transactions and data-before-addr
     typedef struct {
         logic [ID_WIDTH-1:0]   id;
         logic [ADDR_WIDTH-1:0] addr;
@@ -66,11 +67,20 @@ module axi4_tb_top;
         logic [2:0]            size;
         logic [1:0]            burst;
         logic [7:0]            beat_cnt;
+        logic                  w_received;  // Flag: at least one W beat received
     } aw_info_t;
 
     aw_info_t aw_queue[$];
     aw_info_t current_aw;
     logic     aw_active;
+
+    // Data-before-addr support: buffer for W data beats (FIFO, matched by order)
+    typedef struct {
+        logic [DATA_WIDTH-1:0]   wdata;
+        logic [DATA_WIDTH/8-1:0] wstrb;
+        logic                    wlast;
+    } w_data_t;
+    w_data_t w_data_queue[$];
 
     // AW channel: always ready
     assign axi4_vif.awready = 1'b1;
@@ -93,44 +103,64 @@ module axi4_tb_top;
             s_bid        <= '0;
             s_bresp      <= 2'b00;
             aw_queue     = {};
+            w_data_queue = {};
             current_aw   = '{default: '0};
             aw_active    = 0;
         end else begin
             // Capture AW channel and push to queue
             if (axi4_vif.awvalid && axi4_vif.awready) begin
                 aw_info_t aw_info;
-                aw_info.id           = axi4_vif.awid;
-                aw_info.addr         = axi4_vif.awaddr;
-                aw_info.len          = axi4_vif.awlen;
-                aw_info.size         = axi4_vif.awsize;
-                aw_info.burst        = axi4_vif.awburst;
-                aw_info.beat_cnt     = 0;
+                aw_info.id            = axi4_vif.awid;
+                aw_info.addr          = axi4_vif.awaddr;
+                aw_info.len           = axi4_vif.awlen;
+                aw_info.size          = axi4_vif.awsize;
+                aw_info.burst         = axi4_vif.awburst;
+                aw_info.beat_cnt      = 0;
                 aw_info.aligned_start = (aw_info.addr >> aw_info.size) << aw_info.size;
+                aw_info.w_received    = 0;
                 aw_queue.push_back(aw_info);
             end
 
-            // Process W channel
+            // Capture W channel data into buffer (supports data-before-addr)
             if (axi4_vif.wvalid && axi4_vif.wready) begin
-                logic [ADDR_WIDTH-1:0] wr_addr;
+                w_data_t w_data;
+                w_data.wdata = axi4_vif.wdata;
+                w_data.wstrb = axi4_vif.wstrb;
+                w_data.wlast = axi4_vif.wlast;
+                w_data_queue.push_back(w_data);
+            end
 
-                // Get new transaction from queue if no active transaction
-                if (!aw_active) begin
-                    if (aw_queue.size() > 0) begin
-                        current_aw = aw_queue.pop_front();
-                        aw_active = 1;
-                    end
+            // Process W data beats and match with AW transactions
+            // Key: Each WLAST=1 marks the end of one write transaction
+            // The matching logic assumes W data and AW arrive in the same order (FIFO)
+            if (w_data_queue.size() > 0) begin
+                // Variable declarations must be at the beginning of the block
+                automatic w_data_t w_data;
+                automatic logic [ADDR_WIDTH-1:0] wr_addr;
+                automatic int bytes_per_beat;
+                automatic bit [ADDR_WIDTH-1:0] aligned_wr_addr;
+                automatic logic [ADDR_WIDTH-1:0] wrap_boundary;
+                automatic int wrap_size;
+                automatic int i;
+
+                // If no active AW and AW queue has entries, get one
+                // This handles both: AW-before-W and W-before-Addr cases
+                if (!aw_active && aw_queue.size() > 0) begin
+                    current_aw = aw_queue.pop_front();
+                    aw_active = 1;
                 end
 
-                // Only process W data if we have an active AW
+                // Only process if we have an active AW
                 if (aw_active) begin
+                    w_data = w_data_queue.pop_front();
+                    current_aw.w_received = 1;
+
                     // Calculate address for current beat
                     if (current_aw.beat_cnt == 0) begin
                         wr_addr = current_aw.addr;
                     end else if (current_aw.burst == 2'b01) begin  // INCR
                         wr_addr = current_aw.aligned_start + current_aw.beat_cnt * (1 << current_aw.size);
                     end else if (current_aw.burst == 2'b10) begin  // WRAP
-                        logic [ADDR_WIDTH-1:0] wrap_boundary;
-                        int wrap_size;
                         wrap_size = (current_aw.len + 1) * (1 << current_aw.size);
                         wrap_boundary = (current_aw.addr / wrap_size) * wrap_size;
                         wr_addr = wrap_boundary + ((current_aw.addr - wrap_boundary + current_aw.beat_cnt * (1 << current_aw.size)) % wrap_size);
@@ -139,31 +169,24 @@ module axi4_tb_top;
                     end
 
                     // Write to memory: only write bytes indicated by WSTRB
-                    // For unaligned transfers, WSTRB[i] and wdata[i*8 +: 8] correspond to aligned_addr + i
-                    // e.g., addr=0x1ba08449 (offset=1), WSTRB=4'b1110:
-                    //   - WSTRB[1]=1: wdata[15:8]  -> mem[aligned_addr + 1] = mem[0x1ba08449]
-                    //   - WSTRB[2]=1: wdata[23:16] -> mem[aligned_addr + 2] = mem[0x1ba0844a]
-                    //   - WSTRB[3]=1: wdata[31:24] -> mem[aligned_addr + 3] = mem[0x1ba0844b]
-                    begin
-                        int bytes_per_beat;
-                        bit [ADDR_WIDTH-1:0] aligned_wr_addr;
-                        bytes_per_beat = 1 << current_aw.size;
-                        aligned_wr_addr = (wr_addr >> current_aw.size) << current_aw.size;
-                        for (int i = 0; i < bytes_per_beat; i++) begin
-                            if (axi4_vif.wstrb[i])
-                                mem[aligned_wr_addr + i] = axi4_vif.wdata[i*8 +: 8];
-                        end
+                    bytes_per_beat = 1 << current_aw.size;
+                    aligned_wr_addr = (wr_addr >> current_aw.size) << current_aw.size;
+                    for (i = 0; i < bytes_per_beat; i++) begin
+                        if (w_data.wstrb[i])
+                            mem[aligned_wr_addr + i] = w_data.wdata[i*8 +: 8];
                     end
 
-                    if (axi4_vif.wlast) begin
+                    if (w_data.wlast) begin
+                        // End of write transaction: send BVALID
                         s_bvalid  <= 1;
                         s_bid     <= current_aw.id;
                         s_bresp   <= 2'b00;
-                        aw_active = 0;
+                        aw_active = 0;  // Ready for next AW
                     end else begin
                         current_aw.beat_cnt = current_aw.beat_cnt + 1;
                     end
                 end
+                // If aw_queue is empty and aw_active is 0, W data stays in queue waiting for AW
             end
 
             if (s_bvalid && axi4_vif.bready)
