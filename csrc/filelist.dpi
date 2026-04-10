@@ -1,4 +1,0 @@
-DPI_STUB_OBJS += ./../simv_axi4_long_time_test.daidir/vc_hdrs.o
-./../simv_axi4_long_time_test.daidir/vc_hdrs.o: ./../simv_axi4_long_time_test.daidir/vc_hdrs.c
-	@$(CC) -I/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/vcs_201809/vcs/O-2018.09-SP2/include  -pipe -DVCS -DUVM_DPI_DO_TYPE_CHECK -fPIC    -I/home/xingchangchang/ProgramFiles/vcs_verdi2018/synopsys/vcs_201809/vcs/O-2018.09-SP2/include  -fPIC -c -o ./../simv_axi4_long_time_test.daidir/vc_hdrs.o ./../simv_axi4_long_time_test.daidir/vc_hdrs.c
-	@strip -g ./../simv_axi4_long_time_test.daidir/vc_hdrs.o
