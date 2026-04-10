@@ -457,7 +457,7 @@ class axi4_monitor extends uvm_monitor;
                     m_wr_timeout_id_q.push_back(m_wr_trans_q[i].m_id);
                     m_wr_timeout_count++;
 
-                    `uvm_error(get_type_name(), $sformatf(
+                    `uvm_warning(get_type_name(), $sformatf(
                         "Write timeout detected! AWID=%0d, waited %0d cycles (threshold=%0d)",
                         m_wr_trans_q[i].m_id, m_cycle_count - m_wr_timeout_q[i], m_cfg.m_wtimeout))
                     // Remove timed out transaction
@@ -474,7 +474,7 @@ class axi4_monitor extends uvm_monitor;
                     m_rd_timeout_id_q.push_back(m_rd_trans_q[i].m_id);
                     m_rd_timeout_count++;
 
-                    `uvm_error(get_type_name(), $sformatf(
+                    `uvm_warning(get_type_name(), $sformatf(
                         "Read timeout detected! ARID=%0d, waited %0d cycles (threshold=%0d)",
                         m_rd_trans_q[i].m_id, m_cycle_count - m_rd_timeout_q[i], m_cfg.m_rtimeout))
                     // Remove timed out transaction

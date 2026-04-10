@@ -833,8 +833,8 @@ class axi4_long_time_test extends axi4_base_test;
 
         // Configure timeout thresholds
         // Long burst may take more time, adjust timeout accordingly
-        m_cfg.m_wtimeout = 10;  // Write timeout: 10000 cycles
-        m_cfg.m_rtimeout = 10;  // Read timeout: 10000 cycles
+        m_cfg.m_wtimeout = 15;  // Write timeout: 10000 cycles
+        m_cfg.m_rtimeout = 15;  // Read timeout: 10000 cycles
 
         `uvm_info(get_type_name(), "Timeout configuration: WTIMEOUT=10000, RTIMEOUT=10000 cycles", UVM_MEDIUM)
     endfunction

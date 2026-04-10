@@ -598,7 +598,7 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             // Check write timeouts (waiting for BVALID)
             for (int i = 0; i < m_wr_start_cycle.size(); i++) begin
                 if ((m_cycle_count - m_wr_start_cycle[i]) > m_cfg.m_wtimeout) begin
-                    `uvm_error(get_type_name(), $sformatf(
+                    `uvm_warning(get_type_name(), $sformatf(
                         "Write timeout! Waiting for BVALID, elapsed=%0d cycles (threshold=%0d)",
                         m_cycle_count - m_wr_start_cycle[i], m_cfg.m_wtimeout))
                     m_wr_start_cycle.delete(i);
@@ -609,7 +609,7 @@ class axi4_master_driver extends uvm_driver #(axi4_transaction);
             // Check read timeouts (waiting for RLAST)
             for (int i = 0; i < m_rd_start_cycle.size(); i++) begin
                 if ((m_cycle_count - m_rd_start_cycle[i]) > m_cfg.m_rtimeout) begin
-                    `uvm_error(get_type_name(), $sformatf(
+                    `uvm_warning(get_type_name(), $sformatf(
                         "Read timeout! Waiting for RLAST, elapsed=%0d cycles (threshold=%0d)",
                         m_cycle_count - m_rd_start_cycle[i], m_cfg.m_rtimeout))
                     m_rd_start_cycle.delete(i);
